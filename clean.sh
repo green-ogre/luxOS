@@ -1,0 +1,1 @@
+cd kernel && make clean
