@@ -1,17 +1,34 @@
-.set ALIGN,    1<<0
-.set MEMINFO,  1<<1
-.set MAGIC,    0x1BADB002
-.set FLAGS,    ALIGN | MEMINFO
-.set CHECKSUM, -(MAGIC + FLAGS)
+.set MAGIC,     0x1badb002
+.set FLAGS,     7
+.set CHECKSUM,  -(MAGIC + FLAGS)
+.set MODE_TYPE, 0
+.set WIDTH,     1024
+.set HEIGHT,    768
+.set DEPTH,     32
 
+.set HEADER_ADDR,   0
+.set LOAD_ADDR,     0
+.set LOAD_END_ADDR, 0
+.set BSS_END_ADDR,  0
+.set ENTRY_ADDR,    0
+
+
+# https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#OS-image-format 
 .section .multiboot
-.align 4
 .long MAGIC
 .long FLAGS
 .long CHECKSUM
-.long 0, 0, 0, 0, 0  # unused
-.long 0              # 0 = set graphics mode
-.long 1024, 768, 32  # width, height, depth
+.long HEADER_ADDR
+.long LOAD_ADDR
+.long LOAD_END_ADDR
+.long BSS_END_ADDR
+.long ENTRY_ADDR
+.long MODE_TYPE
+.long WIDTH
+.long HEIGHT
+.long DEPTH
+/* enough space for the returned header */
+.space 4 * 13
 
 .section .bss
 .align 16
@@ -23,17 +40,18 @@ stack_top:
 .global _start
 .type _start, @function
 _start:
-  mov $stack_top, %esp
-
-  # Multiboot info structure address
-  pushl %ebx
-  # Magic value
-  pushl %eax
-
+  mov  $kernel_stack, %esp
+  mov  $kernel_stack, %ecx
+  push %eax
+  push %ebx
+  push %ecx
   call kmain
 
+_stop:
   cli
-1:hlt
-	jmp 1b
+  hlt
+  jmp _stop
 
-.size _start, . - _start
+.section .bss
+.space 200 * 1024 * 1024;
+kernel_stack:
