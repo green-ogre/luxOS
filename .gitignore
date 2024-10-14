@@ -1,4 +1,4 @@
+target/
 isodir/
-*/build
-*/compile_commands.json
-*/.cache
+lux.iso
+
