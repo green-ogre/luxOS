@@ -1,5 +1,4 @@
-use crate::println;
-use core::arch::asm;
+use crate::{port::Port, println};
 use core::fmt::Write;
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -37,14 +36,14 @@ macro_rules! serial_println {
 
 lazy_static! {
     pub static ref SERIAL1: Mutex<SerialPort> = {
-        let serial_port = SerialPort::new(0x3F8);
-        serial_port.init();
+        let serial_port = SerialPort::default();
+        unsafe { serial_port.init() };
         Mutex::new(serial_port)
     };
 }
 
 pub struct SerialPort {
-    port: u32,
+    ports: [Port; 8],
 }
 
 impl core::fmt::Write for SerialPort {
@@ -54,72 +53,57 @@ impl core::fmt::Write for SerialPort {
     }
 }
 
+impl Default for SerialPort {
+    fn default() -> Self {
+        unsafe {
+            Self {
+                ports: [
+                    Port::new(0x3F8),
+                    Port::new(0x3F9),
+                    Port::new(0x3FA),
+                    Port::new(0x3FB),
+                    Port::new(0x3FC),
+                    Port::new(0x3FD),
+                    Port::new(0x3FE),
+                    Port::new(0x3FF),
+                ],
+            }
+        }
+    }
+}
+
 impl SerialPort {
-    pub fn new(port: u32) -> Self {
-        Self { port }
-    }
-
-    pub fn writeb(&self, byte: u8) {
-        outb(byte, self.port);
-    }
-
-    pub fn readb(&self) -> u8 {
-        inb(self.port)
-    }
-
-    fn init(&self) {
+    unsafe fn init(&self) {
         // https://c9x.me/x86/html/file_module_x86_id_139.html
-        outb(0x00, self.port + 1); // Disable all interrupts
-        outb(0x80, self.port + 3); // Enable DLAB (set baud rate divisor)
-        outb(0x03, self.port); // Set divisor to 3 (lo byte) 38400 baud
-        outb(0x00, self.port + 1); //                  (hi byte)
-        outb(0x03, self.port + 3); // 8 bits, no parity, one stop bit
-        outb(0xC7, self.port + 2); // Enable FIFO, clear them, with 14-byte threshold
-        outb(0x0B, self.port + 4); // IRQs enabled, RTS/DSR set
-        outb(0x1E, self.port + 4); // Set in loopback mode, test the serial chip
-        outb(0xAE, self.port); // Test serial chip (send byte 0xAE and check if serial returns same byte)
+        self.ports[1].write(0x00); // Disable all interrupts
+        self.ports[3].write(0x80); // Enable DLAB (set baud rate divisor)
+        self.ports[0].write(0x03); // Set divisor to 3 (lo byte) 38400 baud
+        self.ports[1].write(0x00); //                  (hi byte)
+        self.ports[3].write(0x03); // 8 bits, no parity, one stop bit
+        self.ports[2].write(0xC7); // Enable FIFO, clear them, with 14-byte threshold
+        self.ports[4].write(0x0B); // IRQs enabled, RTS/DSR set
+        self.ports[4].write(0x1E); // Set in loopback mode, test the serial chip
+        self.ports[0].write(0xAE); // Test serial chip (send byte 0xAE and check if serial returns same byte)
 
         // Check if serial is faulty (i.e: not same byte as sent)
-        if inb(self.port) != 0xAE {
-            println!("Could not init serial port: {}", self.port);
+        if self.ports[0].read() != 0xAE {
+            println!("Could not init serial port: 0x3F8");
             panic!();
         }
 
         // If serial is not faulty set it in normal operation mode
         // (not-loopback with IRQs enabled and OUT#1 and OUT#2 bits enabled)
-        outb(0x0F, self.port + 4);
+        self.ports[4].write(0x0F);
     }
 
     fn is_transmit_empty(&self) -> u8 {
-        inb(self.port + 5) & 0x20
+        unsafe { self.ports[5].read() & 0x20 }
     }
 
     fn send_str(&self, bytes: &[u8]) {
         for b in bytes.iter() {
             while self.is_transmit_empty() == 0 {}
-            outb(*b, self.port);
+            unsafe { self.ports[0].write(*b) };
         }
     }
-}
-
-fn outb(value: u8, port: u32) {
-    unsafe {
-        asm!(
-           "out dx, al",
-           in("dx") port,
-           in("al") value,
-        );
-    }
-}
-
-fn inb(port: u32) -> u8 {
-    let value: u8;
-    unsafe {
-        asm!(
-            "in al, dx",
-            in("dx") port,
-            out("al") value,
-        );
-    }
-    value
 }
