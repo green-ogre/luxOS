@@ -15,7 +15,7 @@ const RESERVED_PORTS: [u16; 9] = [
 #[derive(Debug, Default)]
 pub struct PortManager {
     // TODO: Maybe this should be a Vec in the future?
-    requested_ports: ArrayVec<u16, 1>,
+    requested_ports: ArrayVec<u16, 32>,
 }
 
 impl PortManager {
@@ -32,6 +32,7 @@ impl PortManager {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+// TODO: On construct R/W permissions? Could be nice for Cmos.
 pub struct Port(u16);
 
 impl Port {

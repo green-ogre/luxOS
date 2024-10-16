@@ -11,6 +11,7 @@ pub static ALLOCATOR: Allocator = Allocator::new();
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(unused)]
 enum MmapType {
     Unknown = 0,
     Available = 1,
@@ -32,22 +33,26 @@ struct MmapEntry {
 // https://wiki.osdev.org/Detecting_Memory_(x86)#Memory_Map_Via_GRUB
 // TODO: This information _might_ be somewhere within memory, and not
 // strictly confined to the first MB, meaning this needs to be saved.
+#[allow(unused)]
 struct MmapTable {
     // help: core::alloc::,
 }
 
 #[repr(align(4096))]
+#[allow(unused)]
 pub struct PageTable {
     entries: [PageTableEntry; 512],
 }
 
 #[repr(u16)]
+#[allow(unused)]
 enum PagePermissions {
     Read,
     Write,
     ReadWrite,
 }
 
+#[allow(unused)]
 struct PageTableEntry {
     permissions: PagePermissions,
     index: u16,
@@ -84,10 +89,10 @@ impl Allocator {
         let mmap_addr = multiboot_header.mmap_addr;
 
         let addr = mmap_addr as *const MmapEntry;
-        serial_println!("{}", addr as u32);
+        // serial_println!("{}", addr as u32);
 
         let entries = mmap_length / size_of::<MmapEntry>();
-        serial_println!("Parsing {} mmap entries", entries);
+        // serial_println!("Parsing {} mmap entries", entries);
         let mut largest_entry = 0;
         let mut largest_memory_size = 0;
         for i in 0..entries {
@@ -98,7 +103,7 @@ impl Allocator {
                 largest_memory_size = memory_size;
                 largest_entry = i;
             }
-            serial_println!("{}: {:?}", i, entry);
+            // serial_println!("{}: {:?}", i, entry);
         }
 
         if largest_memory_size == 0 {
@@ -106,16 +111,16 @@ impl Allocator {
         }
 
         let entry = unsafe { *addr.add(largest_entry) };
-        serial_println!("largest entry: {}\n{:?}", largest_entry, entry);
+        // serial_println!("largest entry: {}\n{:?}", largest_entry, entry);
         // TODO: figure out how the ordering works
         //
         // https://marabos.nl/atomics/
         self.first_header
             .store(entry.addr as *mut u8, Ordering::Relaxed);
-        serial_println!(
-            "allocator start: {}",
-            self.first_header.load(Ordering::Relaxed) as u64,
-        );
+        // serial_println!(
+        //     "allocator start: {}",
+        //     self.first_header.load(Ordering::Relaxed) as u64,
+        // );
 
         let first_header = entry.addr as *mut AllocHeader;
         unsafe {
@@ -141,22 +146,22 @@ impl Allocator {
             target_len += 4 - end_padding;
         }
 
-        serial_println!("\ncurrent_address: {:#x}", current_address as u64);
-        serial_println!("header_padding: {}", header_padding);
-        serial_println!("layout: {:?}", layout);
-        serial_println!("target_len: {}", target_len);
+        // serial_println!("\ncurrent_address: {:#x}", current_address as u64);
+        // serial_println!("header_padding: {}", header_padding);
+        // serial_println!("layout: {:?}", layout);
+        // serial_println!("target_len: {}", target_len);
 
         loop {
             if current_header.is_occupied() {
-                serial_println!("\tcurrent header is occupied");
+                // serial_println!("\tcurrent header is occupied");
                 if !current_header.next_header_is_valid() {
                     panic!("\t\tcurrent header points to null next header");
                 } else {
                     current_address = current_address.add(current_header.len() as usize);
-                    serial_println!(
-                        "\t\tcurrent header points to non-null next header, jumping to {:#x}...",
-                        current_address as u64
-                    );
+                    // serial_println!(
+                    //     "\t\tcurrent header points to non-null next header, jumping to {:#x}...",
+                    //     current_address as u64
+                    // );
                     current_header = *(current_address as *mut AllocHeader);
 
                     continue;
@@ -165,19 +170,19 @@ impl Allocator {
 
             // Actually do the allocation
             if !current_header.is_occupied() && current_header.len() as usize >= target_len {
-                serial_println!(
-                    "\tcurrent header is not occupied and the size >= target_len, breaking..."
-                );
+                // serial_println!(
+                //     "\tcurrent header is not occupied and the size >= target_len, breaking..."
+                // );
 
                 let previous_len = current_header.len();
 
                 current_header.set_occupied();
                 let alloc_ptr = current_address.add(header_padding + size_of::<AllocHeader>());
-                serial_println!(
-                    "\talloc_ptr: {:#x}, distance from header start: {}",
-                    alloc_ptr as u64,
-                    alloc_ptr as u64 - current_address as u64
-                );
+                // serial_println!(
+                //     "\talloc_ptr: {:#x}, distance from header start: {}",
+                //     alloc_ptr as u64,
+                //     alloc_ptr as u64 - current_address as u64
+                // );
                 debug_assert!(current_header.is_occupied());
 
                 // Create a new header if necessary
@@ -187,7 +192,7 @@ impl Allocator {
                     *(current_address.add(target_len) as *mut AllocHeader) =
                         AllocHeader::new(next_header_len);
                     current_header.next_header_addr = current_address.add(target_len) as u32;
-                    serial_println!("\t\tsetting next header: {:?}", current_header);
+                    // serial_println!("\t\tsetting next header: {:?}", current_header);
                 }
 
                 *(current_address as *mut AllocHeader) = current_header;
@@ -196,14 +201,14 @@ impl Allocator {
             }
 
             if !current_header.next_header_is_valid() {
-                serial_println!("\tcurrent header points to null next header, breaking...");
+                // serial_println!("\tcurrent header points to null next header, breaking...");
                 break;
             } else {
                 current_address = current_header.next_header_addr as *mut u8;
-                serial_println!(
-                    "\tcurrent header points to non-null next header, jumping to {:#x}...",
-                    current_address as u64
-                );
+                // serial_println!(
+                //     "\tcurrent header points to non-null next header, jumping to {:#x}...",
+                //     current_address as u64
+                // );
                 current_header = *(current_address as *mut AllocHeader);
             }
         }
@@ -211,8 +216,8 @@ impl Allocator {
         panic!("buy more ram nerd");
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
-        serial_println!("\nDeallocating ptr: {:#x} : {:?}", ptr as u64, layout);
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: core::alloc::Layout) {
+        // serial_println!("\nDeallocating ptr: {:#x} : {:?}", ptr as u64, layout);
         let first_header_ptr = self.first_header.load(Ordering::Relaxed);
         let mut current_header = *(first_header_ptr as *mut AllocHeader);
         let mut current_address = first_header_ptr;
@@ -299,4 +304,139 @@ impl AllocHeader {
     pub fn next_header_addr(&self) -> u32 {
         self.next_header_addr
     }
+}
+
+#[allow(unused)]
+fn assert_all_allocations_vacant() {
+    let first_header_ptr = ALLOCATOR.first_header.load(Ordering::Relaxed);
+    let mut current_header = unsafe { *(first_header_ptr as *mut AllocHeader) };
+    let mut current_address;
+
+    loop {
+        assert!(!current_header.is_occupied());
+
+        if !current_header.next_header_is_valid() {
+            break;
+        } else {
+            current_address = current_header.next_header_addr() as *mut u8;
+            current_header = unsafe { *(current_address as *mut AllocHeader) };
+        }
+    }
+}
+
+#[allow(unused)]
+fn assert_atleast_one_allocation() {
+    let first_header_ptr = ALLOCATOR.first_header.load(Ordering::Relaxed);
+    let mut current_header = unsafe { *(first_header_ptr as *mut AllocHeader) };
+    let mut current_address;
+    let mut has_atleast_one_allocation = false;
+
+    loop {
+        if current_header.is_occupied() {
+            has_atleast_one_allocation = true;
+        }
+
+        if !current_header.next_header_is_valid() {
+            break;
+        } else {
+            current_address = current_header.next_header_addr() as *mut u8;
+            current_header = unsafe { *(current_address as *mut AllocHeader) };
+        }
+    }
+
+    if !has_atleast_one_allocation {
+        panic!("assert_atleast_one_allocation");
+    }
+}
+
+#[allow(unused)]
+fn assert_num_allocations(num: usize) {
+    let first_header_ptr = ALLOCATOR.first_header.load(Ordering::Relaxed);
+    let mut current_header = unsafe { *(first_header_ptr as *mut AllocHeader) };
+    let mut current_address;
+    let mut num_allocations = 0;
+
+    loop {
+        if current_header.is_occupied() {
+            num_allocations += 1;
+        }
+
+        if !current_header.next_header_is_valid() {
+            break;
+        } else {
+            current_address = current_header.next_header_addr() as *mut u8;
+            current_header = unsafe { *(current_address as *mut AllocHeader) };
+        }
+    }
+
+    assert_eq!(num, num_allocations);
+}
+
+#[allow(unused)]
+fn simple_vec_alloc_dealloc<T: PartialEq + Debug + Clone>(expected_allocations: usize, args: &[T]) {
+    {
+        let v = args.to_vec();
+        serial_println!("{:?}", v);
+        for (i, arg) in args.iter().enumerate() {
+            assert_eq!(*arg, v[i]);
+        }
+        assert_atleast_one_allocation();
+        assert_num_allocations(expected_allocations);
+    }
+    assert_all_allocations_vacant();
+}
+
+#[test_case]
+#[cfg(test)]
+fn simple_allocation_deallocation() {
+    use alloc::{boxed::Box, string::ToString, vec};
+
+    simple_vec_alloc_dealloc(1, &[1, 2, 3]);
+    simple_vec_alloc_dealloc(1, &["Hello, ", "World!"]);
+
+    {
+        let v = vec!["Hello, ".to_string(), "World!".to_string()];
+        serial_println!("{:?}", v);
+        assert_eq!("Hello, ", v[0]);
+        assert_eq!("World!", v[1]);
+        assert_atleast_one_allocation();
+        assert_num_allocations(3);
+        drop(v);
+        assert_all_allocations_vacant();
+    }
+
+    {
+        let b = Box::new(69);
+        serial_println!("{:?}", b);
+        assert_eq!(*b, 69);
+        assert_num_allocations(1);
+        drop(b);
+        assert_all_allocations_vacant();
+    }
+
+    {
+        let mut v = vec!["Hello, ".to_string(), "World!".to_string()];
+        serial_println!("{:?}", v);
+        assert_eq!("Hello, ", v[0]);
+        assert_eq!("World!", v[1]);
+        assert_num_allocations(3);
+
+        let b = Box::new(69);
+        serial_println!("{:?}", b);
+        assert_eq!(*b, 69);
+        assert_num_allocations(4);
+
+        serial_println!("{:?}", v);
+        assert_eq!("Hello, ", v[0]);
+        assert_eq!("World!", v[1]);
+
+        drop(b);
+        v.push("My, My".to_string());
+        assert_num_allocations(4);
+        serial_println!("{:?}", v);
+        assert_eq!("Hello, ", v[0]);
+        assert_eq!("World!", v[1]);
+        assert_eq!("My, My", v[2]);
+    }
+    assert_all_allocations_vacant();
 }

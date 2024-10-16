@@ -33,31 +33,37 @@
 /* enough space for the returned header */
 .space 4 * 13
 
-.section .bss
-.align 16
-stack_bottom:
-.skip 16384
-stack_top:
-
 .section .text
 .global _start
 .type _start, @function
 _start:
-  mov  kernel_stack, esp
+    mov stack_top, esp
 
-  push ebx
-  push eax
-  call kernel_main
+    push ebx
+    push eax
+    call kernel_main
 
-  mov eax, 0x10
-  out 0xf4, eax
+    mov eax, 0x10
+    out 0xf4, eax
 
 _stop:
-  cli
-  hlt
-  jmp _stop
+    cli
+    hlt
+    jmp _stop
 
 .section .bss
-.space 200 * 1024 * 1024;
-kernel_stack:
+.align 16
+
+gdtr:
+.skip 8
+gdtr_code:
+.skip 8
+gdtr_data:
+.skip 8
+
+stack_bottom:
+.skip 16384
+stack_top:
+.skip 4
+
 
