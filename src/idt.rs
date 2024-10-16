@@ -1,12 +1,9 @@
-use crate::{interrupt::enable_interrupts, serial_println};
 use core::{arch::asm, cell::RefCell};
 
 pub fn init() {
     init_idt();
     let size_of_idt = size_of::<u64>() as u64 * 256;
     let idt_addr = IDT.entries.as_ptr() as *const GateDescriptor as u64;
-    serial_println!("idt size: {}", size_of_idt);
-    serial_println!("init idt addr: {:#x}", idt_addr);
     let idt_ptr = (size_of_idt - 1) | (idt_addr << 16);
 
     #[allow(named_asm_labels)]
@@ -17,7 +14,6 @@ pub fn init() {
             options(att_syntax)
         )
     };
-    enable_interrupts();
 }
 
 pub fn read_idtr() -> u64 {
@@ -199,28 +195,33 @@ impl GateType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{debug, test::test_impl::TestResult, test_assert, test_assert_eq, test_case};
 
-    fn test_descriptor(isr_offset: u32, selector: SegmentSelector, gate_type: GateType) {
+    fn test_descriptor(
+        isr_offset: u32,
+        selector: SegmentSelector,
+        gate_type: GateType,
+    ) -> TestResult {
         let gate = GateDescriptor::new(isr_offset, selector, gate_type);
-        serial_println!("{:#x}, {:#x}", gate.offset(), isr_offset);
-        assert_eq!(gate.offset(), isr_offset);
-        assert_eq!(gate.selector(), selector.encoded_value());
-        assert_eq!(gate.gate_type(), gate_type.value());
-        assert!(gate.present());
+        debug!("{:#x}, {:#x}", gate.offset(), isr_offset);
+        test_assert_eq!(gate.offset(), isr_offset);
+        test_assert_eq!(gate.selector(), selector.encoded_value());
+        test_assert_eq!(gate.gate_type(), gate_type.value());
+        test_assert!(gate.present());
+        TestResult::Success
     }
 
-    #[test_case]
-    fn idt_descriptors() {
+    test_case!(idt_descriptors, {
         test_descriptor(0, SegmentSelector::GDT_DATA, GateType::Interrupt32);
         test_descriptor(0xdeafdeaf, SegmentSelector::GDT_DATA, GateType::Task);
         test_descriptor(0xd2203122, SegmentSelector::GDT_DATA, GateType::Task);
 
         let idt_addr = (read_idtr() >> 16) as *const u64;
-        serial_println!(
+        debug!(
             "int 0x80: {:#b}, {:#x}",
             unsafe { *idt_addr.add(0x80) },
             IDT.entries.borrow()[0x80].0
         );
-        assert_eq!(unsafe { *idt_addr.add(0x80) }, IDT.entries.borrow()[0x80].0);
-    }
+        test_assert_eq!(unsafe { *idt_addr.add(0x80) }, IDT.entries.borrow()[0x80].0);
+    });
 }

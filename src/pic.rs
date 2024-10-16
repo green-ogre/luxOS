@@ -1,6 +1,8 @@
 use crate::port::PortManager;
 
 pub fn init(port_manager: &mut PortManager) {
+    unsafe { core::arch::asm!("cli") };
+
     let mpic_cmd = unsafe { port_manager.request_port(0x20).unwrap() };
     let mpic_data = unsafe { port_manager.request_port(0x21).unwrap() };
     let spic_cmd = unsafe { port_manager.request_port(0xA0).unwrap() };

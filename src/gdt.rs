@@ -1,16 +1,11 @@
-use crate::{
-    interrupt::{disable_interrupts, enable_interrupts},
-    serial_println,
-};
+use crate::test_case;
 use core::arch::asm;
 
 pub fn init() {
     let size_of_gdt = 8 * 3;
     let gdt_addr = &GDT as *const GdtDescriptor as u64;
-    serial_println!("init gdt addr: {:#x}", gdt_addr);
     let gdt_ptr = (size_of_gdt - 1) | (gdt_addr << 16);
 
-    disable_interrupts();
     #[allow(named_asm_labels)]
     unsafe {
         asm!(
@@ -28,7 +23,6 @@ pub fn init() {
             options(att_syntax)
         )
     };
-    enable_interrupts();
 }
 
 pub fn read_gdtr() -> u64 {
@@ -154,16 +148,19 @@ enum Granularity {
     KiloBytes,
 }
 
-/// TODO: access byte
-#[test_case]
 #[cfg(test)]
-fn gdt_descriptors() {
-    let gdt = GdtDescriptor::new(0xdeaf, 0xff33, Granularity::KiloBytes, false);
-    assert_eq!(0xdeaf, gdt.base());
-    assert_eq!(0xff33, gdt.limit());
-    assert_eq!(0b1100, gdt.flags());
-    let gdt = GdtDescriptor::new(0xff33, 0xdeaf, Granularity::Bytes, true);
-    assert_eq!(0xff33, gdt.base());
-    assert_eq!(0xdeaf, gdt.limit());
-    assert_eq!(0b0100, gdt.flags());
+mod tests {
+    use super::*;
+    use crate::test_case;
+
+    test_case!(gdt_descriptors, {
+        let gdt = GdtDescriptor::new(0xdeaf, 0xff33, Granularity::KiloBytes, false);
+        test_assert_eq!(0xdeaf, gdt.base());
+        test_assert_eq!(0xff33, gdt.limit());
+        test_assert_eq!(0b1100, gdt.flags());
+        let gdt = GdtDescriptor::new(0xff33, 0xdeaf, Granularity::Bytes, true);
+        test_assert_eq!(0xff33, gdt.base());
+        test_assert_eq!(0xdeaf, gdt.limit());
+        test_assert_eq!(0b0100, gdt.flags());
+    });
 }

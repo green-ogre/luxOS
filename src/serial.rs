@@ -1,11 +1,10 @@
-use crate::{port::Port, println};
-use core::fmt::Write;
+use crate::{lock::spinlock::SpinLock, port::Port, println};
 use lazy_static::lazy_static;
-use spin::Mutex;
 
 // https://os.phil-opp.com/testing/#printing-to-the-console
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
+    use core::fmt::Write;
     SERIAL1
         .lock()
         .write_fmt(args)
@@ -35,10 +34,10 @@ macro_rules! serial_println {
 }
 
 lazy_static! {
-    pub static ref SERIAL1: Mutex<SerialPort> = {
+    pub static ref SERIAL1: SpinLock<SerialPort> = {
         let serial_port = SerialPort::default();
         unsafe { serial_port.init() };
-        Mutex::new(serial_port)
+        SpinLock::new(serial_port)
     };
 }
 

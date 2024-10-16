@@ -175,14 +175,18 @@ pub struct Rtc {
     pub year: u8,
 }
 
-#[test_case]
 #[cfg(test)]
-fn time() {
-    let mut port_manager = PortManager::default();
-    let cmos = Cmos::new(&mut port_manager);
-    let rtc = cmos.get_rtc();
-    serial_println!("{:?}", rtc);
-    assert_eq!(cmos.second(), rtc.second);
-    assert_eq!(cmos.minute(), rtc.minute);
-    assert_eq!(cmos.hour(), rtc.hour);
+mod tests {
+    use super::*;
+    use crate::{debug, test_case};
+
+    test_case!(time, {
+        let mut port_manager = PortManager::default();
+        let cmos = Cmos::new(&mut port_manager);
+        let rtc = cmos.get_rtc();
+        debug!("{:?}", rtc);
+        test_assert_eq!(cmos.second(), rtc.second);
+        test_assert_eq!(cmos.minute(), rtc.minute);
+        test_assert_eq!(cmos.hour(), rtc.hour);
+    });
 }

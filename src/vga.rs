@@ -1,8 +1,8 @@
+use crate::lock::spinlock::SpinLock;
 use lazy_static::lazy_static;
-use spin::Mutex;
 
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer::default());
+    pub static ref WRITER: SpinLock<Writer> = SpinLock::new(Writer::default());
 }
 
 #[macro_export]
