@@ -1,13 +1,10 @@
 .set MAGIC,     0x1badb002
-.set FLAGS,     2
+.set FLAGS,     7
 .set CHECKSUM,  -(MAGIC + FLAGS)
 .set MODE_TYPE, 0
-# .set WIDTH,     1024
-# .set HEIGHT,    768
-# .set DEPTH,     32
-.set WIDTH,     0
-.set HEIGHT,    0
-.set DEPTH,     0
+.set WIDTH,     1023
+.set HEIGHT,    767
+.set DEPTH,     32
 
 .set HEADER_ADDR,   0
 .set LOAD_ADDR,     0

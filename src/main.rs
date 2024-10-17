@@ -70,18 +70,8 @@ pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHead
 
     info!("lux initialized");
 
-    let mut port_manager = PortManager::default();
-    let data = unsafe { port_manager.request_port(0x60).unwrap() };
-    let status_and_command_register = unsafe { port_manager.request_port(0x64).unwrap() };
-
     #[allow(clippy::empty_loop)]
-    loop {
-        unsafe {
-            while status_and_command_register.read() & 2 > 0 {}
-            let result = data.read();
-            info!("{:#x}", result);
-        }
-    }
+    loop {}
 }
 
 #[panic_handler]

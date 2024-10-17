@@ -1,3 +1,5 @@
+use crate::info;
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct MultibootHeader {
@@ -44,6 +46,13 @@ pub fn verify_mutliboot_magic(magic: u32) {
 pub fn parse_multiboot_header(magic: u32, multiboot_header: *const MultibootHeader) {
     let multiboot_header = unsafe { &*multiboot_header };
     verify_mutliboot_magic(magic);
+
+    info!("{:#x}", multiboot_header.framebuffer_addr);
+    info!("{:#x}", multiboot_header.framebuffer_pitch);
+    info!("{:#x}", multiboot_header.framebuffer_width);
+    info!("{:#x}", multiboot_header.framebuffer_height);
+    info!("{:#x}", multiboot_header.framebuffer_bpp);
+    info!("{:#x}", multiboot_header.framebuffer_type);
 
     // serial_println!("flags: {:#b}", multiboot_header.flags);
     // serial_println!(
