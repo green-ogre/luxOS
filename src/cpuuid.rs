@@ -33,7 +33,7 @@ pub fn get_cpu_features() -> Vec<CpuidFeatureEdx> {
     push_reg(d);
     push_reg(c);
 
-    debug!("CPU vendor id: {}", vendor_id);
+    // debug!("CPU vendor id: {}", vendor_id);
     assert_eq!("GenuineIntel".to_string(), vendor_id);
 
     // Gather cpu features
@@ -47,7 +47,7 @@ pub fn get_cpu_features() -> Vec<CpuidFeatureEdx> {
     }
 
     let mut features: Vec<CpuidFeatureEdx> = Vec::with_capacity(32);
-    debug!("cpuid: {:#b}", d);
+    // debug!("cpuid: {:#b}", d);
     for i in 0..32 {
         // TODO: match statement
         let feature = (d >> i) & 1;
@@ -56,7 +56,7 @@ pub fn get_cpu_features() -> Vec<CpuidFeatureEdx> {
             features.push(unsafe { core::mem::transmute(1 << i) });
         }
     }
-    debug!("features: {:?}", features);
+    // debug!("features: {:?}", features);
     features
 }
 

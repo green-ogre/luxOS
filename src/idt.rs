@@ -1,8 +1,14 @@
+use crate::{
+    interrupt::{InterruptFrame, InterruptLookup, INTERRUPT_LOOKUP},
+    serial_println,
+};
 use core::{arch::asm, cell::RefCell};
 
-pub fn init() {
+const NUM_GATE_DESC: usize = 256;
+
+pub fn init() -> &'static InterruptLookup {
     init_idt();
-    let size_of_idt = size_of::<u64>() as u64 * 256;
+    let size_of_idt = size_of::<u64>() as u64 * NUM_GATE_DESC as u64;
     let idt_addr = IDT.entries.as_ptr() as *const GateDescriptor as u64;
     let idt_ptr = (size_of_idt - 1) | (idt_addr << 16);
 
@@ -14,49 +20,219 @@ pub fn init() {
             options(att_syntax)
         )
     };
+
+    &INTERRUPT_LOOKUP
 }
 
-pub fn read_idtr() -> u64 {
-    let mut gdt = 0;
-    unsafe {
-        asm!("sidt [{}]", in (reg) &mut gdt, options(nostack, preserves_flags));
-    }
-    gdt
+macro_rules! register_default_handler {
+    ($entry:expr) => {
+        IDT.set_entry(
+            GateDescriptor::new(
+                #[allow(clippy::fn_to_numeric_cast)]
+                {
+                    paste::paste! {
+                        #[no_mangle]
+                        #[allow(clippy::not_unsafe_ptr_arg_deref)]
+                        pub extern "x86-interrupt" fn [<__default_handler $entry>] (_frame: $crate::interrupt::InterruptFrame) {
+                            $crate::interrupt::interrupt_entry($entry);
+                        }
+
+                        [<__default_handler $entry>] as u32
+                    }
+                },
+                SegmentSelector::GDT_CODE,
+                GateType::Interrupt32,
+            ),
+            $entry,
+        );
+    };
 }
 
-const NUM_GATE_DESC: usize = 256;
+macro_rules! register_handlers {
+    ($($n:expr),*) => {
+        $(
+            register_default_handler!($n);
+        )*
+    };
+}
+
+macro_rules! register_err_code_handler {
+    ($entry:expr) => {
+        IDT.set_entry(
+            GateDescriptor::new(
+                #[allow(clippy::fn_to_numeric_cast)]
+                {
+                    paste::paste! {
+                        #[no_mangle]
+                        #[allow(clippy::not_unsafe_ptr_arg_deref)]
+                        pub extern "x86-interrupt" fn [<__default_handler $entry>] (_frame: $crate::interrupt::InterruptFrame, _err: u32) {
+                            $crate::interrupt::interrupt_entry($entry);
+                        }
+
+                        [<__default_handler $entry>] as u32
+                    }
+                },
+                SegmentSelector::GDT_CODE,
+                GateType::Interrupt32,
+            ),
+            $entry,
+        );
+    };
+}
+
+macro_rules! register_err_code_handlers {
+    ($($n:expr),*) => {
+        $(
+            register_err_code_handler!($n);
+        )*
+    };
+}
+
+macro_rules! register_pic_handler {
+    ($entry:expr) => {
+        IDT.set_entry(
+            GateDescriptor::new(
+                #[allow(clippy::fn_to_numeric_cast)]
+                {
+                    paste::paste! {
+                        #[no_mangle]
+                        #[allow(clippy::not_unsafe_ptr_arg_deref)]
+                        pub extern "x86-interrupt" fn [<__default_handler $entry>] (_frame: $crate::interrupt::InterruptFrame) {
+                            $crate::interrupt::interrupt_entry($entry);
+                            unsafe {
+                                let pic1 = $crate::port::Port::new(0x20);
+                                let pic2 = $crate::port::Port::new(0xA0);
+                                if ($entry >= 8 + $crate::pic::PIC_VEC_OFFSET) {
+                                    pic2.write(0x20);
+                                }
+                                pic1.write(0x20);
+                            }
+                        }
+
+                        [<__default_handler $entry>] as u32
+                    }
+                },
+                SegmentSelector::GDT_CODE,
+                GateType::Interrupt32,
+            ),
+            $entry,
+        );
+    };
+}
+
+macro_rules! register_pic_handlers {
+    ($($n:expr),*) => {
+        $(
+            register_pic_handler!($n);
+        )*
+    };
+}
+
+fn init_idt() {
+    register_handlers!(
+        0, 1, 2, 3, 4, 5, 6, 7, 9, 15, 16, 19, 20, 22, 23, 24, 25, 26, 27, 28, 31, 48, 49, 50, 51,
+        52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74,
+        75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
+        98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115,
+        116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133,
+        134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151,
+        152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169,
+        170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187,
+        188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205,
+        206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
+        224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241,
+        242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255
+    );
+
+    register_err_code_handlers!(10, 11, 12, 13, 14, 17, 21, 29, 30);
+
+    register_pic_handlers!(
+        32, // 33,
+        34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47
+    );
+
+    IDT.set_entry(
+        GateDescriptor::new(
+            #[allow(clippy::fn_to_numeric_cast)]
+            {
+                #[no_mangle]
+                #[allow(clippy::not_unsafe_ptr_arg_deref)]
+                pub extern "x86-interrupt" fn double_fault(_frame: InterruptFrame, _err: u32) {
+                    panic!("double fault");
+                }
+
+                double_fault as u32
+            },
+            SegmentSelector::GDT_CODE,
+            GateType::Interrupt32,
+        ),
+        8,
+    );
+
+    IDT.set_entry(
+        GateDescriptor::new(
+            #[allow(clippy::fn_to_numeric_cast)]
+            {
+                #[no_mangle]
+                #[allow(clippy::not_unsafe_ptr_arg_deref)]
+                pub extern "x86-interrupt" fn machine_check(_frame: InterruptFrame, _err: u32) {
+                    panic!("machine check");
+                }
+
+                machine_check as u32
+            },
+            SegmentSelector::GDT_CODE,
+            GateType::Interrupt32,
+        ),
+        18,
+    );
+
+    IDT.set_entry(
+        GateDescriptor::new(
+            #[allow(clippy::fn_to_numeric_cast)]
+            {
+                #[no_mangle]
+                #[allow(clippy::not_unsafe_ptr_arg_deref)]
+                pub extern "x86-interrupt" fn ps2(_frame: InterruptFrame) {
+                    unsafe {
+                        let data = crate::port::Port::new(0x60);
+                        let result = data.read();
+                        serial_println!("{:#x}", result);
+
+                        let pic1 = crate::port::Port::new(0x20);
+                        pic1.write(0x20);
+                    }
+                }
+
+                ps2 as u32
+            },
+            SegmentSelector::GDT_CODE,
+            GateType::Interrupt32,
+        ),
+        33,
+    );
+}
 
 static IDT: InterruptTable = InterruptTable::new();
 
-struct InterruptTable {
+pub struct InterruptTable {
     entries: RefCell<[GateDescriptor; NUM_GATE_DESC]>,
 }
 
 unsafe impl Sync for InterruptTable {}
 
 impl InterruptTable {
+    #[allow(clippy::new_without_default)]
     pub const fn new() -> Self {
         Self {
             entries: RefCell::new([GateDescriptor::null(); NUM_GATE_DESC]),
         }
     }
 
-    pub fn set_entry(&self, descriptor: GateDescriptor, entry: usize) {
+    fn set_entry(&self, descriptor: GateDescriptor, entry: usize) {
         debug_assert!(entry < NUM_GATE_DESC);
         self.entries.borrow_mut()[entry] = descriptor;
     }
-}
-
-fn init_idt() {
-    IDT.set_entry(
-        #[allow(clippy::fn_to_numeric_cast)]
-        GateDescriptor::new(
-            crate::interrupt::general_fault_handler as u32,
-            SegmentSelector::GDT_CODE,
-            GateType::Interrupt32,
-        ),
-        0x80,
-    );
 }
 
 #[derive(Debug, Clone, Copy)]

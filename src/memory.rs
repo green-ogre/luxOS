@@ -84,7 +84,8 @@ impl Allocator {
     }
 
     /// Parses the mmap to find the largest chunk of contiguous memory for the first header.
-    pub fn init(&self, multiboot_header: &MultibootHeader) {
+    pub fn init(&self, multiboot_header: *const MultibootHeader) {
+        let multiboot_header = unsafe { &*multiboot_header };
         let mmap_length = multiboot_header.mmap_length as usize;
         let mmap_addr = multiboot_header.mmap_addr;
 

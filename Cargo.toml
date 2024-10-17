@@ -5,11 +5,9 @@ edition = "2021"
 
 [dependencies]
 arrayvec = { version = "0.7.6", default-features = false }
+lazy_static = { version = "1.0", features = ["spin_no_std"] }
 paste = "1.0.15"
-
-[dependencies.lazy_static]
-version = "1.0"
-features = ["spin_no_std"]
+hashbrown = "0.15.0"
 
 [features]
 log = []

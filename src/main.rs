@@ -7,13 +7,12 @@
 #![allow(clippy::missing_safety_doc)]
 
 use alloc::string::ToString;
-use core::{
-    arch::{asm, global_asm},
-    panic::PanicInfo,
-};
+use core::{arch::global_asm, panic::PanicInfo};
 use exit::{exit_qemu, QemuExitCode};
+use interrupt::{InterruptHandler, IrqId, PicHandler};
 use multiboot::MultibootHeader;
 use port::PortManager;
+use time::Rtc;
 
 extern crate alloc;
 
@@ -28,6 +27,7 @@ pub mod memory;
 pub mod multiboot;
 pub mod pic;
 pub mod port;
+pub mod ps2;
 pub mod serial;
 pub mod test;
 pub mod time;
@@ -40,16 +40,14 @@ global_asm!(include_str!("boot.s"));
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
     let mut port_manager = PortManager::default();
 
+    let interrupt_lookup;
     let mut interrupt_flag = interrupt::InterruptFlag::new();
     interrupt_guard!(interrupt_flag, {
         interrupt::init(&mut port_manager);
         gdt::init();
-        idt::init();
+        interrupt_lookup = idt::init();
     });
-
-    let multiboot_header = unsafe { &*multiboot_header };
-    multiboot::verify_mutliboot_magic(magic);
-    multiboot::parse_multiboot_header(multiboot_header);
+    multiboot::parse_multiboot_header(magic, multiboot_header);
     memory::ALLOCATOR.init(multiboot_header);
 
     // Testing requires that the allocator be initialized, which requires the parsing the multiboot
@@ -60,31 +58,50 @@ pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHead
     let cpu_features = cpuuid::get_cpu_features();
     assert!(cpu_features.contains(&cpuuid::CpuidFeatureEdx::APIC));
 
-    let cmos = time::Cmos::new(&mut port_manager);
-    let rtc = cmos.get_rtc();
-    debug!("{:?}", rtc);
+    Rtc::enable_irq(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
+    ps2::init(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
 
-    interrupt!(0x80);
+    // interrupt_guard!(interrupt_flag, {
+    //     interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
+    //         IrqId::Pic1(0),
+    //         move || {},
+    //     )));
+    // });
 
-    // cmos.sleep(3);
-    exit_qemu(QemuExitCode::Success);
+    info!("lux initialized");
+
+    let mut port_manager = PortManager::default();
+    let data = unsafe { port_manager.request_port(0x60).unwrap() };
+    let status_and_command_register = unsafe { port_manager.request_port(0x64).unwrap() };
 
     #[allow(clippy::empty_loop)]
-    loop {}
+    loop {
+        unsafe {
+            while status_and_command_register.read() & 2 > 0 {}
+            let result = data.read();
+            info!("{:#x}", result);
+        }
+    }
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    serial_println!();
     match info.message().as_str() {
         Some(msg) => {
-            error!("{}", msg)
+            if let Some(loc) = info.location() {
+                serial_println!("PANIC: {} => {}", loc.to_string(), msg);
+            } else {
+                serial_println!("PANIC: {}", msg);
+            }
         }
         None => {
-            error!("Panic, aborting")
+            if let Some(loc) = info.location() {
+                serial_println!("PANIC: {} => Panic, aborting", loc.to_string());
+            } else {
+                serial_println!("PANIC: Panic, aborting")
+            }
         }
-    }
-    if let Some(loc) = info.location() {
-        error!(loc.to_string());
     }
 
     exit_qemu(QemuExitCode::Failed);

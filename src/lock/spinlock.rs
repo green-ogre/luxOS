@@ -10,6 +10,7 @@ pub struct SpinLock<T> {
 }
 
 unsafe impl<T> Sync for SpinLock<T> {}
+unsafe impl<T: Send> Send for SpinLock<T> {}
 
 impl<T> SpinLock<T> {
     pub fn new(inner: T) -> Self {

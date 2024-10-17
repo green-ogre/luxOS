@@ -40,7 +40,11 @@ pub fn verify_mutliboot_magic(magic: u32) {
     }
 }
 
-pub fn parse_multiboot_header(multiboot_header: &MultibootHeader) {
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub fn parse_multiboot_header(magic: u32, multiboot_header: *const MultibootHeader) {
+    let multiboot_header = unsafe { &*multiboot_header };
+    verify_mutliboot_magic(magic);
+
     // serial_println!("flags: {:#b}", multiboot_header.flags);
     // serial_println!(
     //     "mem_lower: {}, present: {}",

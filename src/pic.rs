@@ -1,5 +1,7 @@
 use crate::port::PortManager;
 
+pub const PIC_VEC_OFFSET: usize = 0x20;
+
 pub fn init(port_manager: &mut PortManager) {
     unsafe { core::arch::asm!("cli") };
 
@@ -9,8 +11,8 @@ pub fn init(port_manager: &mut PortManager) {
     let spic_data = unsafe { port_manager.request_port(0xA1).unwrap() };
 
     unsafe {
-        mpic_data.write(0xFF);
-        spic_data.write(0xFF);
+        mpic_data.write(!0x2);
+        spic_data.write(!0);
     }
 
     const INIT: u8 = 0x10;
@@ -21,13 +23,13 @@ pub fn init(port_manager: &mut PortManager) {
         let master_mask = mpic_data.read();
         let slave_mask = spic_data.read();
 
-        let master_offset = 0x20;
-        let slave_offset = 0x28;
+        let master_offset = PIC_VEC_OFFSET;
+        let slave_offset = PIC_VEC_OFFSET + 8;
 
         mpic_cmd.write(INIT | ICW4);
         spic_cmd.write(INIT | ICW4);
-        mpic_data.write(master_offset);
-        spic_data.write(slave_offset);
+        mpic_data.write(master_offset as u8);
+        spic_data.write(slave_offset as u8);
 
         mpic_data.write(4);
         spic_data.write(2);

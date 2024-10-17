@@ -1,17 +1,20 @@
 use crate::{
+    interrupt::{
+        InterruptFlag, InterruptFrame, InterruptHandler, InterruptLookup, IrqId, PicHandler,
+    },
+    interrupt_guard,
     port::{Port, PortManager},
     serial_println,
 };
 
 pub struct Cmos {
-    register_select: Port,
-    data: Port,
+    pub register_select: Port,
+    pub data: Port,
 }
 
 impl Cmos {
     pub fn new(port_manager: &mut PortManager) -> Self {
         let register_select = unsafe { port_manager.request_port(0x70).unwrap() };
-        // WARN: DO NOT WRITE HERE FFS, COULD BRICK BIOS
         let data = unsafe { port_manager.request_port(0x71).unwrap() };
 
         Self {
@@ -144,7 +147,7 @@ impl Cmos {
         }
     }
 
-    fn read_register(&self, register: u8) -> u8 {
+    pub fn read_register(&self, register: u8) -> u8 {
         self.select_register(register);
         unsafe { self.data.read() }
     }
@@ -173,6 +176,39 @@ pub struct Rtc {
     pub day: u8,
     pub month: u8,
     pub year: u8,
+}
+
+impl Rtc {
+    pub fn enable_irq(
+        port_manager: &mut PortManager,
+        interrupt_flag: &mut InterruptFlag,
+        interrupt_lookup: &InterruptLookup,
+    ) {
+        let cmos = Cmos::new(port_manager);
+
+        interrupt_guard!(interrupt_flag, {
+            unsafe {
+                // disable NMI
+                cmos.register_select.write(0x8B);
+                let prev = cmos.data.read();
+                cmos.register_select.write(0x8B);
+                cmos.data.write(prev | 0x40);
+
+                // enable NMI & flush
+                cmos.read_register(0xC);
+            }
+
+            interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
+                IrqId::Pic2(0),
+                move || {
+                    // Flush c register, allow next interrupt
+                    //
+                    // https://wiki.osdev.org/RTC
+                    cmos.read_register(0xC);
+                },
+            )));
+        });
+    }
 }
 
 #[cfg(test)]

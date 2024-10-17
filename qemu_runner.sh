@@ -15,6 +15,6 @@ EOF
 grub-mkrescue -o lux.iso isodir >/dev/null 2>&1
 
 # qemu-system-i386 -m 512M -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial stdio -cdrom lux.iso
-qemu-system-i386 -m 512M -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial stdio -kernel $target
+qemu-system-i386 -cpu host -enable-kvm -m 512M -device isa-debug-exit,iobase=0xf4,iosize=0x04 -device i8042 -serial stdio -kernel $target
 
 exit $(($? & ~33))
