@@ -2,8 +2,8 @@
 .set FLAGS,     7
 .set CHECKSUM,  -(MAGIC + FLAGS)
 .set MODE_TYPE, 0
-.set WIDTH,     1023
-.set HEIGHT,    767
+.set WIDTH,     1024
+.set HEIGHT,    768
 .set DEPTH,     32
 
 .set HEADER_ADDR,   0

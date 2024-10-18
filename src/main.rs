@@ -38,28 +38,28 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
-    let mut port_manager = PortManager::default();
-
-    let interrupt_lookup;
-    let mut interrupt_flag = interrupt::InterruptFlag::new();
-    interrupt_guard!(interrupt_flag, {
-        interrupt::init(&mut port_manager);
-        gdt::init();
-        interrupt_lookup = idt::init();
-    });
+    // let mut port_manager = PortManager::default();
+    //
+    // let interrupt_lookup;
+    // let mut interrupt_flag = interrupt::InterruptFlag::new();
+    // interrupt_guard!(interrupt_flag, {
+    //     interrupt::init(&mut port_manager);
+    //     gdt::init();
+    //     interrupt_lookup = idt::init();
+    // });
     multiboot::parse_multiboot_header(magic, multiboot_header);
-    memory::ALLOCATOR.init(multiboot_header);
+    // memory::ALLOCATOR.init(multiboot_header);
 
     // Testing requires that the allocator be initialized, which requires the parsing the multiboot
     // header to find memory.
-    #[cfg(test)]
-    test_main();
+    // #[cfg(test)]
+    // test_main();
+    //
+    // let cpu_features = cpuuid::get_cpu_features();
+    // assert!(cpu_features.contains(&cpuuid::CpuidFeatureEdx::APIC));
 
-    let cpu_features = cpuuid::get_cpu_features();
-    assert!(cpu_features.contains(&cpuuid::CpuidFeatureEdx::APIC));
-
-    Rtc::enable_irq(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
-    ps2::init(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
+    // Rtc::enable_irq(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
+    // ps2::init(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
 
     // interrupt_guard!(interrupt_flag, {
     //     interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(

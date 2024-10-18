@@ -27,7 +27,7 @@ pub struct MultibootHeader {
     pub vbe_interface_seg: u16,
     pub vbe_interface_off: u32,
     pub vbe_interface_len: u32,
-    pub framebuffer_addr: u64,
+    pub framebuffer_addr: u32,
     pub framebuffer_pitch: u32,
     pub framebuffer_width: u32,
     pub framebuffer_height: u32,
@@ -48,11 +48,11 @@ pub fn parse_multiboot_header(magic: u32, multiboot_header: *const MultibootHead
     verify_mutliboot_magic(magic);
 
     info!("{:#x}", multiboot_header.framebuffer_addr);
-    info!("{:#x}", multiboot_header.framebuffer_pitch);
-    info!("{:#x}", multiboot_header.framebuffer_width);
-    info!("{:#x}", multiboot_header.framebuffer_height);
-    info!("{:#x}", multiboot_header.framebuffer_bpp);
-    info!("{:#x}", multiboot_header.framebuffer_type);
+    info!("{}", multiboot_header.framebuffer_pitch);
+    info!("{}", multiboot_header.framebuffer_width);
+    info!("{}", multiboot_header.framebuffer_height);
+    info!("{}", multiboot_header.framebuffer_bpp);
+    info!("{}", multiboot_header.framebuffer_type);
 
     // serial_println!("flags: {:#b}", multiboot_header.flags);
     // serial_println!(
