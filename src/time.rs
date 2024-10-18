@@ -1,8 +1,5 @@
 use crate::{
-    interrupt::{
-        InterruptFlag, InterruptFrame, InterruptHandler, InterruptLookup, IrqId, PicHandler,
-    },
-    interrupt_guard,
+    interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
     port::{Port, PortManager},
     serial_println,
 };
@@ -179,35 +176,29 @@ pub struct Rtc {
 }
 
 impl Rtc {
-    pub fn enable_irq(
-        port_manager: &mut PortManager,
-        interrupt_flag: &mut InterruptFlag,
-        interrupt_lookup: &InterruptLookup,
-    ) {
+    pub fn enable_irq(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) {
         let cmos = Cmos::new(port_manager);
 
-        interrupt_guard!(interrupt_flag, {
-            unsafe {
-                // disable NMI
-                cmos.register_select.write(0x8B);
-                let prev = cmos.data.read();
-                cmos.register_select.write(0x8B);
-                cmos.data.write(prev | 0x40);
+        unsafe {
+            // disable NMI
+            cmos.register_select.write(0x8B);
+            let prev = cmos.data.read();
+            cmos.register_select.write(0x8B);
+            cmos.data.write(prev | 0x40);
 
-                // enable NMI & flush
+            // enable NMI & flush
+            cmos.read_register(0xC);
+        }
+
+        interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
+            IrqId::Pic2(0),
+            move || {
+                // Flush c register, allow next interrupt
+                //
+                // https://wiki.osdev.org/RTC
                 cmos.read_register(0xC);
-            }
-
-            interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-                IrqId::Pic2(0),
-                move || {
-                    // Flush c register, allow next interrupt
-                    //
-                    // https://wiki.osdev.org/RTC
-                    cmos.read_register(0xC);
-                },
-            )));
-        });
+            },
+        )));
     }
 }
 

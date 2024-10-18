@@ -1,10 +1,9 @@
+use crate::{debug, multiboot::MultibootHeader};
 use core::{
     alloc::GlobalAlloc,
     fmt::Debug,
     sync::atomic::{AtomicPtr, Ordering},
 };
-
-use crate::{debug, multiboot::MultibootHeader};
 
 #[global_allocator]
 pub static ALLOCATOR: Allocator = Allocator::new();
@@ -84,8 +83,7 @@ impl Allocator {
     }
 
     /// Parses the mmap to find the largest chunk of contiguous memory for the first header.
-    pub fn init(&self, multiboot_header: *const MultibootHeader) {
-        let multiboot_header = unsafe { &*multiboot_header };
+    pub fn init(&self, multiboot_header: &MultibootHeader) {
         let mmap_length = multiboot_header.mmap_length as usize;
         let mmap_addr = multiboot_header.mmap_addr;
 
@@ -98,6 +96,7 @@ impl Allocator {
         let mut largest_memory_size = 0;
         for i in 0..entries {
             let entry = unsafe { *addr.add(i) };
+            debug!("{:?}", entry);
             let memory_size = entry.len;
             let entry_ty = entry.ty;
             if entry_ty == MmapType::Available && memory_size > largest_memory_size {
@@ -118,10 +117,6 @@ impl Allocator {
         // https://marabos.nl/atomics/
         self.first_header
             .store(entry.addr as *mut u8, Ordering::Relaxed);
-        // serial_println!(
-        //     "allocator start: {}",
-        //     self.first_header.load(Ordering::Relaxed) as u64,
-        // );
 
         let first_header = entry.addr as *mut AllocHeader;
         unsafe {
@@ -289,6 +284,7 @@ impl AllocHeader {
         self.len &= !1;
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> u32 {
         self.len >> 1
     }

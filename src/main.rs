@@ -9,18 +9,17 @@
 use alloc::string::ToString;
 use core::{arch::global_asm, panic::PanicInfo};
 use exit::{exit_qemu, QemuExitCode};
-use interrupt::{InterruptHandler, IrqId, PicHandler};
 use multiboot::MultibootHeader;
-use port::PortManager;
-use time::Rtc;
 
 extern crate alloc;
 
 pub mod cpuuid;
 pub mod exit;
+pub mod framebuffer;
 pub mod gdt;
 pub mod idt;
 pub mod interrupt;
+pub mod kernel;
 pub mod lock;
 pub mod log;
 pub mod memory;
@@ -38,40 +37,18 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
-    // let mut port_manager = PortManager::default();
-    //
-    // let interrupt_lookup;
-    // let mut interrupt_flag = interrupt::InterruptFlag::new();
-    // interrupt_guard!(interrupt_flag, {
-    //     interrupt::init(&mut port_manager);
-    //     gdt::init();
-    //     interrupt_lookup = idt::init();
-    // });
+    let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
-    // memory::ALLOCATOR.init(multiboot_header);
+
+    let mut kernel = kernel::Kernel::new(multiboot_header);
+    info!("kernel initialized");
 
     // Testing requires that the allocator be initialized, which requires the parsing the multiboot
     // header to find memory.
-    // #[cfg(test)]
-    // test_main();
-    //
-    // let cpu_features = cpuuid::get_cpu_features();
-    // assert!(cpu_features.contains(&cpuuid::CpuidFeatureEdx::APIC));
+    #[cfg(test)]
+    test_main();
 
-    // Rtc::enable_irq(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
-    // ps2::init(&mut port_manager, &mut interrupt_flag, interrupt_lookup);
-
-    // interrupt_guard!(interrupt_flag, {
-    //     interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-    //         IrqId::Pic1(0),
-    //         move || {},
-    //     )));
-    // });
-
-    info!("lux initialized");
-
-    #[allow(clippy::empty_loop)]
-    loop {}
+    kernel.run();
 }
 
 #[panic_handler]
@@ -79,11 +56,17 @@ fn panic(info: &PanicInfo) -> ! {
     serial_println!();
     match info.message().as_str() {
         Some(msg) => {
-            if let Some(loc) = info.location() {
-                serial_println!("PANIC: {} => {}", loc.to_string(), msg);
-            } else {
-                serial_println!("PANIC: {}", msg);
-            }
+            serial_println!("PANIC: {}", msg);
+
+            // INFO: For some reason, running with cdrom in qemu will cause the `loc.to_string()`
+            // call to core dump.
+
+            // if let Some(loc) = info.location() {
+            //     let val = loc.to_string();
+            //     serial_println!("PANIC: {}", msg);
+            // } else {
+            //     serial_println!("PANIC: {}", msg);
+            // }
         }
         None => {
             if let Some(loc) = info.location() {

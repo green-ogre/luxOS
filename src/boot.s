@@ -40,9 +40,6 @@ _start:
     push eax
     call kernel_main
 
-    mov eax, 0x10
-    out 0xf4, eax
-
 _stop:
     cli
     hlt

@@ -1,5 +1,3 @@
-use crate::info;
-
 #[repr(C)]
 #[derive(Debug)]
 pub struct MultibootHeader {
@@ -25,9 +23,9 @@ pub struct MultibootHeader {
     pub vbe_mode_info: u32,
     pub vbe_mode: u16,
     pub vbe_interface_seg: u16,
-    pub vbe_interface_off: u32,
-    pub vbe_interface_len: u32,
-    pub framebuffer_addr: u32,
+    pub vbe_interface_off: u16,
+    pub vbe_interface_len: u16,
+    pub framebuffer_addr: u64,
     pub framebuffer_pitch: u32,
     pub framebuffer_width: u32,
     pub framebuffer_height: u32,
@@ -43,16 +41,8 @@ pub fn verify_mutliboot_magic(magic: u32) {
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub fn parse_multiboot_header(magic: u32, multiboot_header: *const MultibootHeader) {
-    let multiboot_header = unsafe { &*multiboot_header };
+pub fn parse_multiboot_header(magic: u32, _multiboot_header: &MultibootHeader) {
     verify_mutliboot_magic(magic);
-
-    info!("{:#x}", multiboot_header.framebuffer_addr);
-    info!("{}", multiboot_header.framebuffer_pitch);
-    info!("{}", multiboot_header.framebuffer_width);
-    info!("{}", multiboot_header.framebuffer_height);
-    info!("{}", multiboot_header.framebuffer_bpp);
-    info!("{}", multiboot_header.framebuffer_type);
 
     // serial_println!("flags: {:#b}", multiboot_header.flags);
     // serial_println!(
@@ -146,7 +136,4 @@ pub fn parse_multiboot_header(magic: u32, multiboot_header: *const MultibootHead
     //
     // let memory_range = multiboot_header.mem_upper - multiboot_header.mem_lower;
     // serial_println!("Memory range: {}mb", memory_range / 1024);
-
-    // serial_println!();
-    assert!((multiboot_header.flags & (1 << 6)) > 0);
 }

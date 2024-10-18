@@ -1,4 +1,3 @@
-use crate::test_case;
 use core::arch::asm;
 
 pub fn init() {

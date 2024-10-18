@@ -9,11 +9,12 @@ pub fn init(port_manager: &mut PortManager) {
 
 #[macro_export]
 macro_rules! interrupt_guard {
-    ($flag:ident, $blck:block) => {
+    ($flag:ident, $blck:block) => {{
         let _guard = $flag.lock();
-        $blck
+        let val = $blck;
         drop(_guard);
-    }
+        val
+    }};
 }
 
 #[macro_export]
@@ -27,32 +28,16 @@ macro_rules! interrupt {
 //
 // What happens when there are two processes that want to disable interrupts, one of them finishes
 // and calls `sti`, which causes an interrupt for the other process?
-pub struct InterruptFlag;
+pub struct InterruptGuard;
 
-impl InterruptFlag {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn lock(&mut self) -> InterruptGuard<'_> {
-        InterruptGuard::new(self)
-    }
-}
-
-#[allow(unused)]
-pub struct InterruptGuard<'a>(&'a mut InterruptFlag);
-
-impl<'a> InterruptGuard<'a> {
-    pub fn new(flag: &'a mut InterruptFlag) -> Self {
-        unsafe { core::arch::asm!("cli") };
-        Self(flag)
-    }
-}
-
-impl Drop for InterruptGuard<'_> {
-    fn drop(&mut self) {
-        unsafe { core::arch::asm!("sti") };
+impl InterruptGuard {
+    pub fn run<T>(f: impl FnOnce() -> T) -> T {
+        unsafe {
+            core::arch::asm!("cli");
+            let ret = f();
+            core::arch::asm!("sti");
+            ret
+        }
     }
 }
 

@@ -1,4 +1,3 @@
-use crate::debug;
 use alloc::{
     string::{String, ToString},
     vec::Vec,

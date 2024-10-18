@@ -1,34 +1,27 @@
 use crate::{
     info,
-    interrupt::{InterruptFlag, InterruptHandler, InterruptLookup, IrqId, PicHandler},
-    interrupt_guard,
+    interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
     port::{Port, PortManager},
 };
 
-pub fn init(
-    port_manager: &mut PortManager,
-    interrupt_flag: &mut InterruptFlag,
-    interrupt_lookup: &InterruptLookup,
-) {
-    interrupt_guard!(interrupt_flag, {
-        unsafe {
-            let mut data = port_manager.request_port(0x60).unwrap();
-            let mut status_and_command_register = port_manager.request_port(0x64).unwrap();
-            init_ps2(&mut status_and_command_register, &mut data);
+pub fn init(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) {
+    unsafe {
+        let mut data = port_manager.request_port(0x60).unwrap();
+        let mut status_and_command_register = port_manager.request_port(0x64).unwrap();
+        init_ps2(&mut status_and_command_register, &mut data);
 
-            interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-                IrqId::Pic1(1),
-                move || {
-                    while status_and_command_register.read() & 2 > 0 {}
-                    let result = data.read();
-                    info!("{:#x}", result);
+        interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
+            IrqId::Pic1(1),
+            move || {
+                while status_and_command_register.read() & 2 > 0 {}
+                let result = data.read();
+                info!("{:#x}", result);
 
-                    let pic1 = Port::new(0x20);
-                    pic1.write(0x20);
-                },
-            )));
-        }
-    });
+                let pic1 = Port::new(0x20);
+                pic1.write(0x20);
+            },
+        )));
+    }
 }
 
 // https://wiki.osdev.org/%228042%22_PS/2_Controller#Initialising_the_PS/2_Controller
