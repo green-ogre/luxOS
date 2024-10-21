@@ -69,7 +69,7 @@ impl Debug for InterruptFrame {
 }
 
 pub fn interrupt_entry(irq: u8) {
-    if let Some(handler) = INTERRUPT_LOOKUP.funcs.lock().get(&irq) {
+    if let Some(handler) = INTERRUPT_LOOKUP.funcs.lock().get_mut(&irq) {
         handler.run();
     } else {
         warn!("interrupt {} not handled", irq);
@@ -111,7 +111,7 @@ pub enum InterruptHandler {
 }
 
 impl InterruptHandler {
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         match self {
             Self::Pic(pic) => (pic.func)(),
             Self::Exception(exc) => (exc.func)(),
@@ -121,11 +121,11 @@ impl InterruptHandler {
 
 pub struct PicHandler {
     pub irq_id: IrqId,
-    pub func: Box<dyn Fn()>,
+    pub func: Box<dyn FnMut()>,
 }
 
 impl PicHandler {
-    pub fn new(irq_id: IrqId, func: impl Fn() + 'static) -> Self {
+    pub fn new(irq_id: IrqId, func: impl FnMut() + 'static) -> Self {
         let func = Box::new(func);
         Self { irq_id, func }
     }

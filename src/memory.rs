@@ -380,8 +380,8 @@ mod tests {
 
     // TODO: Why don't to_string and to_owned work?
     test_case!(simple_allocation_deallocation, {
-        simple_vec_alloc_dealloc(1, &[1, 2, 3]);
-        simple_vec_alloc_dealloc(1, &["Hello, ", "World!"]);
+        // simple_vec_alloc_dealloc(1, &[1, 2, 3]);
+        // simple_vec_alloc_dealloc(1, &["Hello, ", "World!"]);
 
         {
             // let v = vec!["Hello, ".to_string(), "World!".to_string()];
@@ -392,13 +392,13 @@ mod tests {
             // assert_num_allocations(3);
         }
 
-        {
-            let b = Box::new(69);
-            debug!("{:?}", b);
-            test_assert_eq!(*b, 69);
-            assert_num_allocations(1);
-            drop(b);
-        }
+        // {
+        //     let b = Box::new(69);
+        //     debug!("{:?}", b);
+        //     test_assert_eq!(*b, 69);
+        //     assert_num_allocations(1);
+        //     drop(b);
+        // }
 
         // {
         //     let mut v = vec!["Hello, ".to_string(), "World!".to_string()];

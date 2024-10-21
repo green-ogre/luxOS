@@ -1,24 +1,102 @@
 use crate::{
+    circular_buffer::CircularBuffer,
     info,
     interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
     port::{Port, PortManager},
     serial_println,
 };
 
-pub fn init(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) {
-    unsafe {
-        let mut data = port_manager.request_port(0x60).unwrap();
-        let mut status_and_command_register = port_manager.request_port(0x64).unwrap();
-        init_ps2(&mut status_and_command_register, &mut data);
+pub static KEYBOARD_INPUT: CircularBuffer<KeyboardInput, 8> = CircularBuffer::new();
 
-        interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-            IrqId::Pic1(1),
-            move || {
-                while status_and_command_register.read() & 2 > 0 {}
-                let result = data.read();
-                // serial_println!("{:#x}", result);
-            },
-        )));
+pub struct Ps2Keyboard {
+    input: &'static CircularBuffer<KeyboardInput, 8>,
+}
+
+impl Ps2Keyboard {
+    pub fn new(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) -> Self {
+        unsafe {
+            let mut data = port_manager.request_port(0x60).unwrap();
+            let mut status_and_command_register = port_manager.request_port(0x64).unwrap();
+            init_ps2(&mut status_and_command_register, &mut data);
+
+            let mut last_scan_code = 0;
+            interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
+                IrqId::Pic1(1),
+                move || {
+                    while status_and_command_register.read() & 2 > 0 {}
+                    let data = data.read();
+
+                    if data == 0xF0 {
+                        last_scan_code = 0xF0;
+                        return;
+                    }
+
+                    let state = if last_scan_code == 0xF0 {
+                        KeyState::Released
+                    } else {
+                        KeyState::Pressed
+                    };
+
+                    let key_code: KeyCode = ScanCode(data).into();
+                    last_scan_code = data;
+                    KEYBOARD_INPUT.write(KeyboardInput { key_code, state });
+                },
+            )));
+        }
+
+        Self {
+            input: &KEYBOARD_INPUT,
+        }
+    }
+
+    pub fn read_input_with(&self, mut f: impl FnMut(KeyboardInput)) {
+        while let Some(input) = self.input.read() {
+            f(input);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct KeyboardInput {
+    pub key_code: KeyCode,
+    pub state: KeyState,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum KeyCode {
+    KeyA,
+
+    KeyW,
+    KeyS,
+    KeyD,
+
+    Unknown,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum KeyState {
+    Pressed,
+    Released,
+}
+
+#[derive(Debug)]
+struct ScanCode(u8);
+
+// https://wiki.osdev.org/PS/2_Keyboard
+impl From<ScanCode> for KeyCode {
+    fn from(value: ScanCode) -> Self {
+        match value.0 {
+            0x1C => KeyCode::KeyA,
+
+            0x1D => KeyCode::KeyW,
+            0x1B => KeyCode::KeyS,
+            0x23 => KeyCode::KeyD,
+
+            v => {
+                crate::warn!("Unknown scane code: {:?}", v);
+                KeyCode::Unknown
+            }
+        }
     }
 }
 
