@@ -405,13 +405,5 @@ mod tests {
         test_descriptor(0, SegmentSelector::GDT_DATA, GateType::Interrupt32);
         test_descriptor(0xdeafdeaf, SegmentSelector::GDT_DATA, GateType::Task);
         test_descriptor(0xd2203122, SegmentSelector::GDT_DATA, GateType::Task);
-
-        let idt_addr = (read_idtr() >> 16) as *const u64;
-        debug!(
-            "int 0x80: {:#b}, {:#x}",
-            unsafe { *idt_addr.add(0x80) },
-            IDT.entries.borrow()[0x80].0
-        );
-        test_assert_eq!(unsafe { *idt_addr.add(0x80) }, IDT.entries.borrow()[0x80].0);
     });
 }

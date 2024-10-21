@@ -1,22 +1,26 @@
-use crate::lock::spinlock::SpinLock;
+use core::cell::UnsafeCell;
+
+pub static LOGGER: LogCell = LogCell(UnsafeCell::new(None));
+
+pub struct LogCell(pub UnsafeCell<Option<Logger>>);
+unsafe impl Sync for LogCell {}
 
 pub fn init(log_level: LogLevel) {
-    LOGGER.lock().log_level = Some(log_level);
+    unsafe { *LOGGER.0.get() = Some(Logger::new(log_level)) };
 }
 
 #[derive(Default)]
 pub struct Logger {
-    pub log_level: Option<LogLevel>,
+    pub log_level: LogLevel,
 }
 
 impl Logger {
-    pub const fn new() -> Self {
-        Self { log_level: None }
+    pub const fn new(log_level: LogLevel) -> Self {
+        Self { log_level }
     }
 }
 
-pub static LOGGER: SpinLock<Logger> = SpinLock::new(Logger::new());
-
+#[repr(u8)]
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
     #[default]
@@ -64,16 +68,14 @@ macro_rules! _fmt_log_level {
 #[macro_export]
 macro_rules! debug {
     ($fmt:expr) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Debug,
             concat!($crate::_fmt_log_level!("DEBUG", 35), "{}\n"),
             $fmt
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Debug,
             concat!($crate::_fmt_log_level!("DEBUG", 35), $fmt, "\n"),
             $($arg)*
@@ -84,16 +86,14 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! info {
     ($fmt:expr) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Info,
             concat!($crate::_fmt_log_level!("INFO", 32), "{}\n"),
             $fmt
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Info,
             concat!($crate::_fmt_log_level!("INFO", 32), $fmt, "\n"),
             $($arg)*
@@ -104,16 +104,14 @@ macro_rules! info {
 #[macro_export]
 macro_rules! warn {
     ($fmt:expr) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Warning,
             concat!($crate::_fmt_log_level!("WARN", 33), "{}\n"),
             $fmt
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Warning,
             concat!($crate::_fmt_log_level!("WARN", 33), $fmt, "\n"),
             $($arg)*
@@ -124,16 +122,14 @@ macro_rules! warn {
 #[macro_export]
 macro_rules! error {
     ($fmt:expr) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Error,
             concat!($crate::_fmt_log_level!("ERROR", 31), "{}\n"),
             $fmt
         )
     };
     ($fmt:expr, $($arg:tt)*) => {
-        #[cfg(feature = "log")]
-        $crate::_log!(
+        $crate::log!(
             $crate::log::LogLevel::Error,
             concat!($crate::_fmt_log_level!("ERROR", 31), $fmt, "\n"),
             $($arg)*
@@ -142,12 +138,15 @@ macro_rules! error {
 }
 
 #[macro_export]
-macro_rules! _log {
+macro_rules! log {
     ($log_lvl:expr, $($arg:tt)*) => {
         {
-            if let Some(logger_lvl) = $crate::log::LOGGER.lock().log_level {
-                if $log_lvl.should_log(&logger_lvl) {
-                    $crate::serial::_print(format_args!($($arg)*))
+            #[cfg(feature = "log")]
+            {
+                if let Some(logger) = unsafe { (*$crate::log::LOGGER.0.get()).as_mut() } {
+                    if $log_lvl.should_log(&logger.log_level) {
+                        $crate::serial::_print(format_args!($($arg)*))
+                    }
                 }
             }
         }

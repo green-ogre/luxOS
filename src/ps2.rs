@@ -16,7 +16,7 @@ pub fn init(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) 
             move || {
                 while status_and_command_register.read() & 2 > 0 {}
                 let result = data.read();
-                serial_println!("{:#x}", result);
+                // serial_println!("{:#x}", result);
             },
         )));
     }

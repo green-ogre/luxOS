@@ -6,7 +6,6 @@
 #![reexport_test_harness_main = "test_main"]
 #![allow(clippy::missing_safety_doc)]
 
-use alloc::string::ToString;
 use core::{arch::global_asm, panic::PanicInfo};
 use exit::{exit_qemu, QemuExitCode};
 use multiboot::MultibootHeader;
@@ -37,28 +36,37 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
-    log::init(log::LogLevel::Info);
+    // log::init(log::LogLevel::Info);
 
     let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
+    memory::ALLOCATOR.init(multiboot_header);
 
-    let mut kernel = kernel::Kernel::new(multiboot_header);
-    info!("kernel initialized");
-
-    // Testing requires that the allocator be initialized, which requires the parsing the multiboot
-    // header to find memory.
     #[cfg(test)]
     test_main();
 
+    let mut kernel = kernel::Kernel::new(multiboot_header);
     kernel.run();
     // kernel.square_demo();
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    struct PanicWriter;
+    impl core::fmt::Write for PanicWriter {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            for c in s.chars() {
+                while unsafe { port::Port::new(0x3FD).read() & 0x20 } == 0 {}
+                unsafe { port::Port::new(0x3F8).write(c as u8) };
+            }
+            Ok(())
+        }
+    }
+
+    use core::fmt::Write;
     match info.message().as_str() {
         Some(msg) => {
-            serial_println!("\nPANIC: {}", msg);
+            let _ = write!(PanicWriter, "\nPANIC: {}", msg);
 
             // INFO: For some reason, running with cdrom in qemu will cause the `loc.to_string()`
             // call to core dump.
@@ -71,11 +79,7 @@ fn panic(info: &PanicInfo) -> ! {
             // }
         }
         None => {
-            if let Some(loc) = info.location() {
-                serial_println!("\nPANIC: {} => Panic, aborting", loc.to_string());
-            } else {
-                serial_println!("\nPANIC: Panic, aborting")
-            }
+            let _ = write!(PanicWriter, "\nPANIC");
         }
     }
 

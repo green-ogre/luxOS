@@ -21,12 +21,14 @@ impl<T> SpinLock<T> {
     }
 
     pub fn lock(&self) -> SpinLockGuard<T> {
+        #[allow(clippy::never_loop)]
         while self
             .lock
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
             .is_err()
         {
-            unsafe { crate::port::Port::new(0x3F8).write(b'A') };
+            // unsafe { crate::port::Port::new(0x3F8).write(b'A') };
+            panic!("actually locking: {:?}", core::any::type_name::<T>());
         }
         debug_assert!(self.lock.load(Ordering::Acquire));
         SpinLockGuard::new(&self.lock, self.data.get())

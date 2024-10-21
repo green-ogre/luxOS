@@ -36,9 +36,7 @@ impl Kernel {
             let mut port_manager = PortManager::default();
             gdt::init();
             let interrupt_lookup = idt::init();
-
             interrupt::init(&mut port_manager);
-            memory::ALLOCATOR.init(multiboot_header);
 
             Rtc::enable_irq(&mut port_manager, interrupt_lookup);
             ps2::init(&mut port_manager, interrupt_lookup);
@@ -50,6 +48,8 @@ impl Kernel {
             ));
 
             let frame_buf = FrameBuffer::new(multiboot_header);
+
+            crate::info!("kernel initialized");
 
             Self {
                 port_manager,
