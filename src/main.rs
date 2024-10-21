@@ -38,7 +38,7 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
-    log::init(LogLevel::Debug);
+    // log::init(LogLevel::Debug);
 
     let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
@@ -51,8 +51,8 @@ pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHead
     #[cfg(test)]
     test_main();
 
-    kernel.run();
-    // kernel.square_demo();
+    // kernel.run();
+    kernel.square_demo();
 }
 
 #[panic_handler]
