@@ -9,6 +9,7 @@
 use alloc::string::ToString;
 use core::{arch::global_asm, panic::PanicInfo};
 use exit::{exit_qemu, QemuExitCode};
+use log::LogLevel;
 use multiboot::MultibootHeader;
 
 extern crate alloc;
@@ -37,6 +38,8 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
+    log::init(LogLevel::Debug);
+
     let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
 
@@ -49,6 +52,7 @@ pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHead
     test_main();
 
     kernel.run();
+    // kernel.square_demo();
 }
 
 #[panic_handler]

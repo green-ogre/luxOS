@@ -142,22 +142,22 @@ impl Allocator {
             target_len += 4 - end_padding;
         }
 
-        // serial_println!("\ncurrent_address: {:#x}", current_address as u64);
-        // serial_println!("header_padding: {}", header_padding);
-        // serial_println!("layout: {:?}", layout);
-        // serial_println!("target_len: {}", target_len);
+        crate::debug!("\ncurrent_address: {:#x}", current_address as u64);
+        crate::debug!("header_padding: {}", header_padding);
+        crate::debug!("layout: {:?}", layout);
+        crate::debug!("target_len: {}", target_len);
 
         loop {
             if current_header.is_occupied() {
-                // serial_println!("\tcurrent header is occupied");
+                crate::debug!("\tcurrent header is occupied");
                 if !current_header.next_header_is_valid() {
                     panic!("\t\tcurrent header points to null next header");
                 } else {
                     current_address = current_address.add(current_header.len() as usize);
-                    // serial_println!(
-                    //     "\t\tcurrent header points to non-null next header, jumping to {:#x}...",
-                    //     current_address as u64
-                    // );
+                    crate::debug!(
+                        "\t\tcurrent header points to non-null next header, jumping to {:#x}...",
+                        current_address as u64
+                    );
                     current_header = *(current_address as *mut AllocHeader);
 
                     continue;
@@ -166,19 +166,19 @@ impl Allocator {
 
             // Actually do the allocation
             if !current_header.is_occupied() && current_header.len() as usize >= target_len {
-                // serial_println!(
-                //     "\tcurrent header is not occupied and the size >= target_len, breaking..."
-                // );
+                crate::debug!(
+                    "\tcurrent header is not occupied and the size >= target_len, breaking..."
+                );
 
                 let previous_len = current_header.len();
 
                 current_header.set_occupied();
                 let alloc_ptr = current_address.add(header_padding + size_of::<AllocHeader>());
-                // serial_println!(
-                //     "\talloc_ptr: {:#x}, distance from header start: {}",
-                //     alloc_ptr as u64,
-                //     alloc_ptr as u64 - current_address as u64
-                // );
+                crate::debug!(
+                    "\talloc_ptr: {:#x}, distance from header start: {}",
+                    alloc_ptr as u64,
+                    alloc_ptr as u64 - current_address as u64
+                );
                 debug_assert!(current_header.is_occupied());
 
                 // Create a new header if necessary
@@ -188,7 +188,7 @@ impl Allocator {
                     *(current_address.add(target_len) as *mut AllocHeader) =
                         AllocHeader::new(next_header_len);
                     current_header.next_header_addr = current_address.add(target_len) as u32;
-                    // serial_println!("\t\tsetting next header: {:?}", current_header);
+                    crate::debug!("\t\tsetting next header: {:?}", current_header);
                 }
 
                 *(current_address as *mut AllocHeader) = current_header;
@@ -197,14 +197,14 @@ impl Allocator {
             }
 
             if !current_header.next_header_is_valid() {
-                // serial_println!("\tcurrent header points to null next header, breaking...");
+                crate::debug!("\tcurrent header points to null next header, breaking...");
                 break;
             } else {
                 current_address = current_header.next_header_addr as *mut u8;
-                // serial_println!(
-                //     "\tcurrent header points to non-null next header, jumping to {:#x}...",
-                //     current_address as u64
-                // );
+                crate::debug!(
+                    "\tcurrent header points to non-null next header, jumping to {:#x}...",
+                    current_address as u64
+                );
                 current_header = *(current_address as *mut AllocHeader);
             }
         }

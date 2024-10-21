@@ -40,9 +40,53 @@ pub fn verify_mutliboot_magic(magic: u32) {
     }
 }
 
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+struct VbeModeInfo {
+    attributes: u16,
+    window_a: u8,
+    window_b: u8,
+    granularity: u16,
+    window_size: u16,
+    segment_a: u16,
+    segment_b: u16,
+    win_func_ptr: u32,
+    pitch: u16,
+    width: u16,
+    height: u16,
+    w_char: u8,
+    y_char: u8,
+    planes: u8,
+    bpp: u8,
+    banks: u8,
+    memory_model: u8,
+    bank_size: u8,
+    image_pages: u8,
+    reserved0: u8,
+    red_mask: u8,
+    red_position: u8,
+    green_mask: u8,
+    green_position: u8,
+    blue_mask: u8,
+    blue_position: u8,
+    reserved_mask: u8,
+    reserved_position: u8,
+    direct_color_attributes: u8,
+    framebuffer: u32,
+    off_screen_mem_off: u32,
+    off_screen_mem_size: u16,
+    reserved1: [u8; 206],
+}
+
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn parse_multiboot_header(magic: u32, _multiboot_header: &MultibootHeader) {
     verify_mutliboot_magic(magic);
+
+    // VBE table is valid
+    // assert_eq!(1, (_multiboot_header.flags >> 11) & 1);
+    // crate::info!("{:#b}", _multiboot_header.vbe_mode);
+    // let vbe_info = _multiboot_header.vbe_mode_info as *const u16 as *const VbeModeInfo;
+    // crate::info!("{:#?}", unsafe { *vbe_info });
 
     // serial_println!("flags: {:#b}", multiboot_header.flags);
     // serial_println!(
