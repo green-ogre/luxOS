@@ -25,7 +25,9 @@ impl<T> SpinLock<T> {
             .lock
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
             .is_err()
-        {}
+        {
+            unsafe { crate::port::Port::new(0x3F8).write(b'A') };
+        }
         debug_assert!(self.lock.load(Ordering::Acquire));
         SpinLockGuard::new(&self.lock, self.data.get())
     }

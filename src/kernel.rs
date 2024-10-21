@@ -5,7 +5,7 @@ use crate::{
     memory,
     multiboot::MultibootHeader,
     port::PortManager,
-    ps2,
+    ps2, serial, serial_println,
     time::Rtc,
 };
 
@@ -16,19 +16,38 @@ pub struct Kernel {
     frame_buf: FrameBuffer,
 }
 
+fn check_interrupt_state(location: &str) {
+    unsafe {
+        let mut flags: u32;
+        core::arch::asm!("pushf; pop {}", out(reg) flags);
+        serial_println!(
+            "Interrupt state at {}: IF={}",
+            location,
+            (flags & (1 << 9)) != 0
+        );
+    }
+}
+
 impl Kernel {
     pub fn new(multiboot_header: &MultibootHeader) -> Self {
-        InterruptGuard::run(|| {
-            let mut port_manager = PortManager::default();
-            interrupt::init(&mut port_manager);
+        unsafe { core::arch::asm!("cli") };
 
+        interrupt::InterruptGuard::run(|| {
+            let mut port_manager = PortManager::default();
             gdt::init();
             let interrupt_lookup = idt::init();
 
+            interrupt::init(&mut port_manager);
             memory::ALLOCATOR.init(multiboot_header);
 
             Rtc::enable_irq(&mut port_manager, interrupt_lookup);
             ps2::init(&mut port_manager, interrupt_lookup);
+
+            interrupt_lookup.register_handler(interrupt::InterruptHandler::Pic(
+                interrupt::PicHandler::new(interrupt::IrqId::Pic1(0), move || {
+                    // Prevent PIT interrupt warnings
+                }),
+            ));
 
             let frame_buf = FrameBuffer::new(multiboot_header);
 
@@ -40,7 +59,10 @@ impl Kernel {
         })
     }
 
-    pub fn run(&mut self) {}
+    pub fn run(&mut self) {
+        #[allow(clippy::empty_loop)]
+        loop {}
+    }
 
     pub fn square_demo(&mut self) {
         let mut red_rect = Rect::new(

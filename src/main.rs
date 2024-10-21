@@ -2,14 +2,13 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(custom_test_frameworks)]
-#![test_runner(test::test_impl::test_runner)]
+#![test_runner(test::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![allow(clippy::missing_safety_doc)]
 
 use alloc::string::ToString;
 use core::{arch::global_asm, panic::PanicInfo};
 use exit::{exit_qemu, QemuExitCode};
-use log::LogLevel;
 use multiboot::MultibootHeader;
 
 extern crate alloc;
@@ -38,7 +37,7 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
-    // log::init(LogLevel::Debug);
+    log::init(log::LogLevel::Info);
 
     let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
@@ -51,16 +50,15 @@ pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHead
     #[cfg(test)]
     test_main();
 
-    // kernel.run();
-    kernel.square_demo();
+    kernel.run();
+    // kernel.square_demo();
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    serial_println!();
     match info.message().as_str() {
         Some(msg) => {
-            serial_println!("PANIC: {}", msg);
+            serial_println!("\nPANIC: {}", msg);
 
             // INFO: For some reason, running with cdrom in qemu will cause the `loc.to_string()`
             // call to core dump.
@@ -74,9 +72,9 @@ fn panic(info: &PanicInfo) -> ! {
         }
         None => {
             if let Some(loc) = info.location() {
-                serial_println!("PANIC: {} => Panic, aborting", loc.to_string());
+                serial_println!("\nPANIC: {} => Panic, aborting", loc.to_string());
             } else {
-                serial_println!("PANIC: Panic, aborting")
+                serial_println!("\nPANIC: Panic, aborting")
             }
         }
     }

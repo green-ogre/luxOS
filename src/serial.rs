@@ -101,7 +101,9 @@ impl SerialPort {
 
     fn send_str(&self, bytes: &[u8]) {
         for b in bytes.iter() {
-            while self.is_transmit_empty() == 0 {}
+            while self.is_transmit_empty() == 0 {
+                unsafe { crate::port::Port::new(0x3F8).write(b'S') };
+            }
             unsafe { self.ports[0].write(*b) };
         }
     }

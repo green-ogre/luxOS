@@ -1,27 +1,41 @@
 use core::arch::asm;
 
+static GDT: [GdtDescriptor; 3] = [
+    GdtDescriptor::null(),
+    GdtDescriptor::new(0, 0xFFFFF, Granularity::KiloBytes, true),
+    GdtDescriptor::new(0, 0xFFFFF, Granularity::KiloBytes, false),
+];
+
+#[repr(C, packed)]
+struct GdtPointer {
+    limit: u16,
+    base: u32,
+}
+
 pub fn init() {
     let size_of_gdt = 8 * 3;
-    let gdt_addr = &GDT as *const GdtDescriptor as u64;
-    let gdt_ptr = (size_of_gdt - 1) | (gdt_addr << 16);
+    let gdt_addr = &GDT as *const GdtDescriptor as u32;
 
-    #[allow(named_asm_labels)]
+    let gdt_ptr = GdtPointer {
+        limit: (size_of_gdt - 1) as u16,
+        base: gdt_addr,
+    };
+
     unsafe {
         asm!(
-            "lgdt ({ptr})",
-            "jmp $0x08, $.reload_segments",
-            ".reload_segments:",
-            "mov $0x10, {reg}",
-            "mov {reg}, %ds",
-            "mov {reg}, %es",
-            "mov {reg}, %fs",
-            "mov {reg}, %gs",
-            "mov {reg}, %ss",
-            ptr = in(reg) &gdt_ptr,
-            reg = out(reg) _,
+            "lgdt ({0})",
+            "jmp $0x08, $1f",
+            "1:",
+            "mov $0x10, %ax",
+            "mov %ax, %ds",
+            "mov %ax, %es",
+            "mov %ax, %fs",
+            "mov %ax, %gs",
+            "mov %ax, %ss",
+            in(reg) &gdt_ptr,
             options(att_syntax)
-        )
-    };
+        );
+    }
 }
 
 pub fn read_gdtr() -> u64 {
@@ -31,12 +45,6 @@ pub fn read_gdtr() -> u64 {
     }
     gdt
 }
-
-static GDT: [GdtDescriptor; 3] = [
-    GdtDescriptor::null(),
-    GdtDescriptor::new(0, 0xFFFFF, Granularity::KiloBytes, true),
-    GdtDescriptor::new(0, 0xFFFFF, Granularity::KiloBytes, false),
-];
 
 #[allow(unused)]
 struct GdtDescriptor(u64);

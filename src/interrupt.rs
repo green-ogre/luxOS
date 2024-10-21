@@ -44,11 +44,11 @@ impl InterruptGuard {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InterruptFrame {
-    ip: u32,
-    cs: u32,
-    flags: u32,
-    sp: u32,
-    ss: u32,
+    pub ip: u32,
+    pub cs: u32,
+    pub flags: u32,
+    pub sp: u32,
+    pub ss: u32,
 }
 
 impl Debug for InterruptFrame {

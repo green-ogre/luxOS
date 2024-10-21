@@ -1,16 +1,22 @@
-use crate::{
-    interrupt::{InterruptFrame, InterruptLookup, INTERRUPT_LOOKUP},
-    serial_println,
-};
+use crate::interrupt::{InterruptFrame, InterruptLookup, INTERRUPT_LOOKUP};
 use core::{arch::asm, cell::RefCell};
 
 const NUM_GATE_DESC: usize = 256;
 
+#[repr(C, packed)]
+struct IdtPointer {
+    limit: u16,
+    base: u32,
+}
+
 pub fn init() -> &'static InterruptLookup {
     init_idt();
-    let size_of_idt = size_of::<u64>() as u64 * NUM_GATE_DESC as u64;
-    let idt_addr = IDT.entries.as_ptr() as *const GateDescriptor as u64;
-    let idt_ptr = (size_of_idt - 1) | (idt_addr << 16);
+    let size_of_idt = size_of::<GateDescriptor>() * NUM_GATE_DESC;
+    let idt_addr = IDT.entries.as_ptr() as u32;
+    let idt_ptr = IdtPointer {
+        limit: (size_of_idt - 1) as u16,
+        base: idt_addr,
+    };
 
     #[allow(named_asm_labels)]
     unsafe {
@@ -146,10 +152,7 @@ fn init_idt() {
 
     register_err_code_handlers!(10, 11, 12, 13, 14, 17, 21, 29, 30);
 
-    register_pic_handlers!(
-        32, // 33,
-        34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47
-    );
+    register_pic_handlers!(32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47);
 
     IDT.set_entry(
         GateDescriptor::new(
@@ -193,23 +196,25 @@ fn init_idt() {
             {
                 #[no_mangle]
                 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-                pub extern "x86-interrupt" fn ps2(_frame: InterruptFrame) {
-                    unsafe {
-                        let data = crate::port::Port::new(0x60);
-                        let result = data.read();
-                        serial_println!("{:#x}", result);
+                pub extern "x86-interrupt" fn invalid_op_code_handler(frame: InterruptFrame) {
+                    let instruction_ptr = frame.ip;
 
-                        let pic1 = crate::port::Port::new(0x20);
-                        pic1.write(0x20);
+                    unsafe {
+                        let bytes = core::slice::from_raw_parts(instruction_ptr as *const u8, 16);
+                        crate::serial_println!("Invalid opcode at address {:08x}", instruction_ptr);
+                        crate::serial_println!("Instruction bytes: {:02x?}", &bytes);
+                        crate::serial_println!("frame: {:#?}", frame);
                     }
+
+                    panic!("Invalid opcode exception");
                 }
 
-                ps2 as u32
+                invalid_op_code_handler as u32
             },
             SegmentSelector::GDT_CODE,
             GateType::Interrupt32,
         ),
-        33,
+        6,
     );
 }
 
@@ -304,6 +309,7 @@ impl GateDescriptor {
             *target.add(2) = (selector.encoded_value() & 0xFF) as u8;
             *target.add(3) = ((selector.encoded_value() >> 8) & 0xFF) as u8;
 
+            *target.add(4) = 0;
             *target.add(5) = gate_type.value() | (dpl << 5) | (1 << 7);
 
             *target.add(6) = ((isr_offset >> 16) & 0xFF) as u8;
@@ -371,7 +377,15 @@ impl GateType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{debug, test::test_impl::TestResult, test_assert, test_assert_eq, test_case};
+    use crate::{debug, test::TestResult, test_assert, test_assert_eq, test_case};
+
+    pub fn read_idtr() -> u64 {
+        let mut gdt = 0;
+        unsafe {
+            asm!("sidt [{}]", in (reg) &mut gdt, options(nostack, preserves_flags));
+        }
+        gdt
+    }
 
     fn test_descriptor(
         isr_offset: u32,

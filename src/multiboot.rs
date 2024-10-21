@@ -34,12 +34,6 @@ pub struct MultibootHeader {
     pub color_info: [u8; 5],
 }
 
-pub fn verify_mutliboot_magic(magic: u32) {
-    if magic != 0x2BADB002 {
-        panic!("Invalid mutliloader magic");
-    }
-}
-
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
 struct VbeModeInfo {
@@ -76,6 +70,12 @@ struct VbeModeInfo {
     off_screen_mem_off: u32,
     off_screen_mem_size: u16,
     reserved1: [u8; 206],
+}
+
+pub fn verify_mutliboot_magic(magic: u32) {
+    if magic != 0x2BADB002 {
+        panic!("Invalid mutliloader magic");
+    }
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]

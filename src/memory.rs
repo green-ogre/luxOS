@@ -306,7 +306,7 @@ impl AllocHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::test_impl::TestResult;
+    use crate::test::TestResult;
     use crate::{debug, test_assert};
     use crate::{test_assert_eq, test_case};
     use alloc::{boxed::Box, string::ToString, vec};

@@ -48,13 +48,6 @@ _stop:
 .section .bss
 .align 16
 
-gdtr:
-.skip 8
-gdtr_code:
-.skip 8
-gdtr_data:
-.skip 8
-
 stack_bottom:
 .skip 16384
 stack_top:

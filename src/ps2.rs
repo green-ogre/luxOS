@@ -2,6 +2,7 @@ use crate::{
     info,
     interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
     port::{Port, PortManager},
+    serial_println,
 };
 
 pub fn init(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) {
@@ -15,10 +16,7 @@ pub fn init(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) 
             move || {
                 while status_and_command_register.read() & 2 > 0 {}
                 let result = data.read();
-                info!("{:#x}", result);
-
-                let pic1 = Port::new(0x20);
-                pic1.write(0x20);
+                serial_println!("{:#x}", result);
             },
         )));
     }
@@ -70,11 +68,11 @@ unsafe fn init_ps2(status_and_command_register: &mut Port, data: &mut Port) {
     status_and_command_register.write(0xAE);
 
     // Enable interrupts
-    // status_and_command_register.write(0x20);
-    // let config = data.read();
-    // let new_config = config | 1;
-    // status_and_command_register.write(0x60);
-    // data.write(new_config);
+    status_and_command_register.write(0x20);
+    let config = data.read();
+    let new_config = config | 1;
+    status_and_command_register.write(0x60);
+    data.write(new_config);
 
     // Reset devices
     data.write(0xFF);
