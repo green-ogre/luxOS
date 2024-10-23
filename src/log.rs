@@ -1,22 +1,52 @@
+use crate::{circular_buffer::CircularBuffer, serial::SerialPort};
+use alloc::string::String;
 use core::cell::UnsafeCell;
 
 pub static LOGGER: LogCell = LogCell(UnsafeCell::new(None));
-
 pub struct LogCell(pub UnsafeCell<Option<Logger>>);
 unsafe impl Sync for LogCell {}
-
-pub fn init(log_level: LogLevel) {
-    unsafe { *LOGGER.0.get() = Some(Logger::new(log_level)) };
+impl LogCell {
+    pub fn get(&self) -> Option<&Logger> {
+        unsafe { (*self.0.get()).as_ref() }
+    }
 }
 
-#[derive(Default)]
+pub fn init(log_level: LogLevel) {
+    unsafe { (*LOGGER.0.get()) = Some(Logger::new(log_level)) };
+}
+
 pub struct Logger {
     pub log_level: LogLevel,
+    pub serial_port: SerialPort,
+    pub buf: CircularBuffer<u8>,
 }
 
 impl Logger {
-    pub const fn new(log_level: LogLevel) -> Self {
-        Self { log_level }
+    const BUF_LEN: usize = 1028;
+
+    pub unsafe fn new(log_level: LogLevel) -> Self {
+        let buf = CircularBuffer::new(Self::BUF_LEN);
+        let serial_port = SerialPort::default();
+        unsafe { serial_port.init() };
+        Self {
+            log_level,
+            serial_port,
+            buf,
+        }
+    }
+
+    pub fn log(&self, log_level: LogLevel, log: String) {
+        if self.log_level.should_log(&log_level) {
+            for byte in log.bytes() {
+                self.buf.write(byte);
+            }
+        }
+    }
+
+    pub fn flush(&self) {
+        while let Some(byte) = self.buf.read() {
+            self.serial_port.write_byte(byte);
+        }
     }
 }
 
@@ -143,10 +173,8 @@ macro_rules! log {
         {
             #[cfg(feature = "log")]
             {
-                if let Some(logger) = unsafe { (*$crate::log::LOGGER.0.get()).as_mut() } {
-                    if $log_lvl.should_log(&logger.log_level) {
-                        $crate::serial::_print(format_args!($($arg)*))
-                    }
+                if let Some(logger) = $crate::log::LOGGER.get() {
+                    logger.log($log_lvl, alloc::format!($($arg)*))
                 }
             }
         }

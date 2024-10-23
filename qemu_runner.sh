@@ -6,7 +6,6 @@ mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
 
-echo $target
 cp $target isodir/boot/kernel.bin
 cat >isodir/boot/grub/grub.cfg <<EOF
 set timeout=0

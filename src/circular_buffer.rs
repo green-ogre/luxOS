@@ -1,59 +1,64 @@
+use alloc::boxed::Box;
 use core::{
     cell::UnsafeCell,
-    marker::PhantomData,
     mem::MaybeUninit,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-/// Queue of `0..CAP - 1` elements.
-///
-/// Any subsequent writes past `CAP - 1` overwrite previous values.
-pub struct CircularBuffer<T, const CAP: usize> {
+#[derive(Debug)]
+pub struct CircularBuffer<T> {
     read: AtomicUsize,
     write: AtomicUsize,
-    buf: [UnsafeCell<MaybeUninit<T>>; CAP],
+    buf: Box<[UnsafeCell<MaybeUninit<T>>]>,
 }
 
-unsafe impl<T, const CAP: usize> Sync for CircularBuffer<T, CAP> {}
+unsafe impl<T> Sync for CircularBuffer<T> {}
 
-impl<T, const CAP: usize> CircularBuffer<T, CAP> {
-    #[allow(clippy::new_without_default)]
-    pub const fn new() -> Self {
+impl<T> CircularBuffer<T> {
+    pub fn new(cap: usize) -> Self {
         Self {
             read: AtomicUsize::new(0),
             write: AtomicUsize::new(0),
-            buf: MakeCircularBuffer::UNINIT_ARRAY,
+            buf: (0..cap)
+                .map(|_| UnsafeCell::new(MaybeUninit::uninit()))
+                .collect(),
         }
     }
 
     pub fn write(&self, elem: T) {
+        panic!("hi");
         let new_idx = |idx: usize| -> usize {
-            if idx >= CAP.saturating_sub(1) {
+            if idx >= self.buf.len().saturating_sub(1) {
                 0
             } else {
                 idx + 1
             }
         };
 
-        let mut write = self.write.load(Ordering::Relaxed);
+        let write = self.write.load(Ordering::SeqCst);
 
-        // Need to see if write is the index behind read, and if so, also increment the read.
-        let read = self.read.load(Ordering::Relaxed);
+        let read = self.read.load(Ordering::Acquire);
         if (read != write && write == read.saturating_sub(1))
-            || read == 0 && write == CAP.saturating_sub(1)
+            || read == 0 && write == self.buf.len().saturating_sub(1)
         {
             // TODO: can this cause repeated reads?
             self.read.store(new_idx(read), Ordering::Release);
         }
 
-        let mut index = new_idx(write);
-        while self
+        let index = new_idx(write);
+        match self
             .write
-            .compare_exchange_weak(write, index, Ordering::SeqCst, Ordering::Relaxed)
-            .is_err()
+            .compare_exchange_weak(write, index, Ordering::AcqRel, Ordering::Relaxed)
         {
-            write = self.write.load(Ordering::Relaxed);
-            index = new_idx(write);
+            Ok(_) => {}
+            Err(_) => {
+                // TODO: releaxed read, then retry, honestly just want to see if this ever runs on
+                // my machine in practice.
+                //
+                // write = self.write.load(Ordering::Relaxed);
+                // index = new_idx(write);
+                unimplemented!();
+            }
         }
 
         unsafe { *self.buf[write].get() = MaybeUninit::new(elem) };
@@ -61,25 +66,31 @@ impl<T, const CAP: usize> CircularBuffer<T, CAP> {
 
     pub fn read(&self) -> Option<T> {
         let new_idx = |idx: usize| -> usize {
-            if idx >= CAP.saturating_sub(1) {
+            if idx >= self.buf.len().saturating_sub(1) {
                 0
             } else {
                 idx + 1
             }
         };
 
-        let write = self.write.load(Ordering::Relaxed);
-        let mut read = self.read.load(Ordering::Relaxed);
+        let write = self.write.load(Ordering::SeqCst);
+        let read = self.read.load(Ordering::SeqCst);
 
         if read != write {
-            let mut index = new_idx(read);
-            while self
+            let index = new_idx(read);
+            match self
                 .read
-                .compare_exchange_weak(read, index, Ordering::SeqCst, Ordering::Relaxed)
-                .is_err()
+                .compare_exchange_weak(read, index, Ordering::AcqRel, Ordering::Relaxed)
             {
-                read = self.read.load(Ordering::Relaxed);
-                index = new_idx(read);
+                Ok(_) => {}
+                Err(_) => {
+                    // TODO: releaxed read, then retry, honestly just want to see if this ever runs on
+                    // my machine in practice.
+                    //
+                    // read = self.read.load(Ordering::Relaxed);
+                    // index = new_idx(read);
+                    unimplemented!();
+                }
             }
 
             let mut data = MaybeUninit::uninit();
@@ -94,15 +105,12 @@ impl<T, const CAP: usize> CircularBuffer<T, CAP> {
     }
 }
 
-struct MakeCircularBuffer<T, const CAP: usize> {
-    _phantom: PhantomData<T>,
-}
-
-impl<T, const CAP: usize> MakeCircularBuffer<T, CAP> {
-    #[allow(clippy::declare_interior_mutable_const)]
-    const UNINIT: UnsafeCell<MaybeUninit<T>> = UnsafeCell::new(MaybeUninit::uninit());
-    #[allow(clippy::declare_interior_mutable_const)]
-    const UNINIT_ARRAY: [UnsafeCell<MaybeUninit<T>>; CAP] = [Self::UNINIT; CAP];
+impl<T> Drop for CircularBuffer<T> {
+    fn drop(&mut self) {
+        if core::mem::needs_drop::<T>() {
+            while self.read().is_some() {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -111,7 +119,7 @@ mod tests {
     use crate::test_case;
 
     test_case!(circular_buffer, {
-        let buf = CircularBuffer::<u32, 4>::new();
+        let buf = CircularBuffer::new(4);
         test_assert_eq!(None, buf.read());
 
         buf.write(1);

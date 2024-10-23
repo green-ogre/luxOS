@@ -3,50 +3,55 @@ use crate::{
     info,
     interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
     port::{Port, PortManager},
-    serial_println,
 };
-
-pub static KEYBOARD_INPUT: CircularBuffer<KeyboardInput, 8> = CircularBuffer::new();
+use alloc::sync::Arc;
 
 pub struct Ps2Keyboard {
-    input: &'static CircularBuffer<KeyboardInput, 8>,
+    input: Arc<CircularBuffer<KeyboardInput>>,
 }
 
 impl Ps2Keyboard {
     pub fn new(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) -> Self {
-        unsafe {
-            let mut data = port_manager.request_port(0x60).unwrap();
-            let mut status_and_command_register = port_manager.request_port(0x64).unwrap();
-            init_ps2(&mut status_and_command_register, &mut data);
+        let mut data = unsafe {
+            port_manager
+                .request_port(0x60)
+                .expect("only one Ps2Keyboard driver may be active")
+        };
+        let mut status_and_command_register = unsafe {
+            port_manager
+                .request_port(0x64)
+                .expect("only one Ps2Keyboard driver may be active")
+        };
+        unsafe { init_ps2(&mut status_and_command_register, &mut data) };
 
-            let mut last_scan_code = 0;
-            interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-                IrqId::Pic1(1),
-                move || {
-                    while status_and_command_register.read() & 2 > 0 {}
-                    let data = data.read();
+        let input = Arc::new(CircularBuffer::new(8));
+        let hanlder_input = input.clone();
 
-                    if data == 0xF0 {
-                        last_scan_code = 0xF0;
-                        return;
-                    }
+        let mut last_scan_code = 0;
+        interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
+            IrqId::Pic1(1),
+            move || {
+                while unsafe { status_and_command_register.read() & 2 > 0 } {}
+                let data = unsafe { data.read() };
 
-                    let state = if last_scan_code == 0xF0 {
-                        KeyState::Released
-                    } else {
-                        KeyState::Pressed
-                    };
+                if data == 0xF0 {
+                    last_scan_code = 0xF0;
+                    return;
+                }
 
-                    let key_code: KeyCode = ScanCode(data).into();
-                    last_scan_code = data;
-                    KEYBOARD_INPUT.write(KeyboardInput { key_code, state });
-                },
-            )));
-        }
+                let state = if last_scan_code == 0xF0 {
+                    KeyState::Released
+                } else {
+                    KeyState::Pressed
+                };
 
-        Self {
-            input: &KEYBOARD_INPUT,
-        }
+                let key_code: KeyCode = ScanCode(data).into();
+                last_scan_code = data;
+                hanlder_input.write(KeyboardInput { key_code, state });
+            },
+        )));
+
+        Self { input }
     }
 
     pub fn read_input_with(&self, mut f: impl FnMut(KeyboardInput)) {

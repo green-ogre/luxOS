@@ -72,7 +72,7 @@ impl Default for SerialPort {
 }
 
 impl SerialPort {
-    unsafe fn init(&self) {
+    pub unsafe fn init(&self) {
         // https://c9x.me/x86/html/file_module_x86_id_139.html
         self.ports[1].write(0x00); // Disable all interrupts
         self.ports[3].write(0x80); // Enable DLAB (set baud rate divisor)
@@ -101,10 +101,14 @@ impl SerialPort {
 
     fn send_str(&self, bytes: &[u8]) {
         for b in bytes.iter() {
-            while self.is_transmit_empty() == 0 {
-                unsafe { crate::port::Port::new(0x3F8).write(b'S') };
-            }
-            unsafe { self.ports[0].write(*b) };
+            self.write_byte(*b);
         }
+    }
+
+    pub fn write_byte(&self, byte: u8) {
+        while self.is_transmit_empty() == 0 {
+            unsafe { crate::port::Port::new(0x3F8).write(b'A') };
+        }
+        unsafe { self.ports[0].write(byte) };
     }
 }

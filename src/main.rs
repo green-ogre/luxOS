@@ -12,6 +12,7 @@ use multiboot::MultibootHeader;
 
 extern crate alloc;
 
+pub mod channel;
 pub mod circular_buffer;
 pub mod cpuuid;
 pub mod exit;
@@ -37,18 +38,20 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
-    log::init(log::LogLevel::Info);
-
     let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
     memory::ALLOCATOR.init(multiboot_header);
 
-    #[cfg(test)]
-    test_main();
-
-    let mut kernel = kernel::Kernel::new(multiboot_header);
-    // kernel.run();
-    kernel.square_demo();
+    log::init(log::LogLevel::Info);
+    crate::info!("Hi");
+    exit_qemu(QemuExitCode::Success);
+    //
+    // #[cfg(test)]
+    // test_main();
+    //
+    // let mut kernel = kernel::Kernel::new(multiboot_header);
+    // // kernel.run();
+    // kernel.square_demo();
 }
 
 #[panic_handler]

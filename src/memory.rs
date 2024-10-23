@@ -96,7 +96,7 @@ impl Allocator {
         let mut largest_memory_size = 0;
         for i in 0..entries {
             let entry = unsafe { *addr.add(i) };
-            debug!("{:?}", entry);
+            // debug!("{:?}", entry);
             let memory_size = entry.len;
             let entry_ty = entry.ty;
             if entry_ty == MmapType::Available && memory_size > largest_memory_size {
