@@ -1,7 +1,8 @@
 use crate::{
+    info,
     interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
+    pic::Pic,
     port::{Port, PortManager},
-    serial_println,
 };
 
 pub struct Cmos {
@@ -79,7 +80,7 @@ impl Cmos {
 
     pub fn get_rtc(&self) -> Rtc {
         while self.update_in_progress() {
-            serial_println!("Cmos update in progress, spinning...");
+            info!("Cmos update in progress, spinning...");
         }
         let mut second = self.read_register(0x00);
         let mut minute = self.read_register(0x02);
@@ -94,7 +95,7 @@ impl Cmos {
         // let mut loops = 0;
         loop {
             while self.update_in_progress() {
-                serial_println!("Cmos update in progress, spinning...");
+                info!("Cmos update in progress, spinning...");
             }
             let last_second = self.read_register(0x00);
             let last_minute = self.read_register(0x02);
@@ -176,7 +177,11 @@ pub struct Rtc {
 }
 
 impl Rtc {
-    pub fn enable_irq(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) {
+    pub fn enable_irq(
+        port_manager: &mut PortManager,
+        interrupt_lookup: &InterruptLookup,
+        pic: &mut Pic,
+    ) {
         let cmos = Cmos::new(port_manager);
 
         unsafe {
@@ -190,8 +195,10 @@ impl Rtc {
             cmos.read_register(0xC);
         }
 
+        let pic_id = IrqId::Pic2(0);
+        pic.unmask(pic_id);
         interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-            IrqId::Pic2(0),
+            pic_id,
             move || {
                 // Flush c register, allow next interrupt
                 //

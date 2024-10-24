@@ -1,4 +1,4 @@
-use crate::{debug, multiboot::MultibootHeader};
+use crate::multiboot::MultibootHeader;
 use core::{
     alloc::GlobalAlloc,
     fmt::Debug,

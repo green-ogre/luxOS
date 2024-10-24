@@ -1,48 +1,7 @@
-use crate::{lock::spinlock::SpinLock, port::Port, println};
-use lazy_static::lazy_static;
-
-// https://os.phil-opp.com/testing/#printing-to-the-console
-#[doc(hidden)]
-pub fn _print(args: ::core::fmt::Arguments) {
-    use core::fmt::Write;
-    SERIAL1
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
-}
-
-/// Prints to the host through the serial interface.
-#[macro_export]
-macro_rules! serial_print {
-    ($($arg:tt)*) => {
-        $crate::serial::_print(format_args!($($arg)*))
-    };
-}
-
-/// Prints to the host through the serial interface, appending a newline.
-#[macro_export]
-macro_rules! serial_println {
-    () => {
-        $crate::serial_print!("\n")
-    };
-    ($fmt:expr) => {
-        $crate::serial_print!("{}\n", $fmt)
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        $crate::serial_print!(concat!($fmt, "\n"), $($arg)*)
-    };
-}
-
-lazy_static! {
-    pub static ref SERIAL1: SpinLock<SerialPort> = {
-        let serial_port = SerialPort::default();
-        unsafe { serial_port.init() };
-        SpinLock::new(serial_port)
-    };
-}
+use crate::port::{PortManager, PortSlice};
 
 pub struct SerialPort {
-    ports: [Port; 8],
+    ports: PortSlice<8>,
 }
 
 impl core::fmt::Write for SerialPort {
@@ -52,26 +11,17 @@ impl core::fmt::Write for SerialPort {
     }
 }
 
-impl Default for SerialPort {
-    fn default() -> Self {
+impl SerialPort {
+    pub fn new(port_manager: &mut PortManager) -> Self {
         unsafe {
             Self {
-                ports: [
-                    Port::new(0x3F8),
-                    Port::new(0x3F9),
-                    Port::new(0x3FA),
-                    Port::new(0x3FB),
-                    Port::new(0x3FC),
-                    Port::new(0x3FD),
-                    Port::new(0x3FE),
-                    Port::new(0x3FF),
-                ],
+                ports: port_manager
+                    .request_range(0x3F8)
+                    .expect("could not acquire serial ports"),
             }
         }
     }
-}
 
-impl SerialPort {
     pub unsafe fn init(&self) {
         // https://c9x.me/x86/html/file_module_x86_id_139.html
         self.ports[1].write(0x00); // Disable all interrupts

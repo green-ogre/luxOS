@@ -5,23 +5,23 @@ lazy_static! {
     pub static ref WRITER: SpinLock<Writer> = SpinLock::new(Writer::default());
 }
 
-#[macro_export]
-macro_rules! print {
-    () => {};
-    ($fmt:expr) => {
-        $crate::vga::WRITER.lock().write_str($fmt);
-    };
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!(b"\n"));
-    ($fmt:expr) => ($crate::print!(concat!($fmt, "\n").as_bytes()));
-    ($($arg:tt)*) => {{
-        use core::fmt::Write;
-        write!($crate::vga::WRITER.lock(), "{}\n", format_args!($($arg)*)).unwrap();
-    }};
-}
+// #[macro_export]
+// macro_rules! print {
+//     () => {};
+//     ($fmt:expr) => {
+//         $crate::vga::WRITER.lock().write_str($fmt);
+//     };
+// }
+//
+// #[macro_export]
+// macro_rules! println {
+//     () => ($crate::print!(b"\n"));
+//     ($fmt:expr) => ($crate::print!(concat!($fmt, "\n").as_bytes()));
+//     ($($arg:tt)*) => {{
+//         use core::fmt::Write;
+//         write!($crate::vga::WRITER.lock(), "{}\n", format_args!($($arg)*)).unwrap();
+//     }};
+// }
 
 const VGA_WIDTH: usize = 80;
 const VGA_HEIGHT: usize = 25;

@@ -1,4 +1,4 @@
-use crate::{circular_buffer::CircularBuffer, serial::SerialPort};
+use crate::{circular_buffer::CircularBuffer, port::PortManager, serial::SerialPort};
 use core::{cell::UnsafeCell, fmt::Write};
 
 pub static LOGGER: LogCell = LogCell(UnsafeCell::new(None));
@@ -10,8 +10,8 @@ impl LogCell {
     }
 }
 
-pub fn init(log_level: LogLevel) {
-    unsafe { (*LOGGER.0.get()) = Some(Logger::new(log_level)) };
+pub fn init(log_level: LogLevel, port_manager: &mut PortManager) {
+    unsafe { (*LOGGER.0.get()) = Some(Logger::new(log_level, port_manager)) };
 }
 
 pub struct Logger {
@@ -23,9 +23,9 @@ pub struct Logger {
 impl Logger {
     const BUF_LEN: usize = 512;
 
-    pub unsafe fn new(log_level: LogLevel) -> Self {
+    pub unsafe fn new(log_level: LogLevel, port_manager: &mut PortManager) -> Self {
         let buf = CircularBuffer::new(Self::BUF_LEN);
-        let serial_port = SerialPort::default();
+        let serial_port = SerialPort::new(port_manager);
         unsafe { serial_port.init() };
 
         Self {
@@ -203,6 +203,28 @@ macro_rules! log {
             if let Some(logger) = $crate::log::LOGGER.get() {
                 logger.log(logger, $log_lvl, format_args!($($arg)*));
             }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {{
+        if let Some(logger) = $crate::log::LOGGER.get() {
+            use core::fmt::Write;
+            $crate::log::LogWriter { logger }.write_fmt(format_args!($($arg)*)).unwrap();
+            logger.flush();
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!(b"\n"));
+    ($($arg:tt)*) => {
+        {
+            $crate::print!($($arg)*);
+            $crate::print!("\n");
         }
     };
 }

@@ -9,6 +9,7 @@
 use core::{arch::global_asm, panic::PanicInfo};
 use exit::{exit_qemu, QemuExitCode};
 use multiboot::MultibootHeader;
+use port::PortManager;
 
 extern crate alloc;
 
@@ -38,15 +39,18 @@ global_asm!(include_str!("boot.s"));
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHeader) {
+    multiboot::verify_mutliboot_magic(magic);
     let multiboot_header = unsafe { &*multiboot_header };
-    multiboot::parse_multiboot_header(magic, multiboot_header);
     memory::ALLOCATOR.init(multiboot_header);
-    log::init(log::LogLevel::Info);
+
+    let mut port_manager = PortManager::default();
+    // WARN: Tests require the `log` feature for no discernable reason. Will hang here otherwise.
+    log::init(log::LogLevel::Info, &mut port_manager);
 
     #[cfg(test)]
     test_main();
 
-    let mut kernel = kernel::Kernel::new(multiboot_header);
+    let mut kernel = kernel::Kernel::new(multiboot_header, port_manager);
     // kernel.run();
     kernel.square_demo();
 }

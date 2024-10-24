@@ -1,11 +1,7 @@
-use crate::{lock::spinlock::SpinLock, pic::PIC_VEC_OFFSET, port::PortManager, warn};
+use crate::{lock::spinlock::SpinLock, pic::Pic, warn};
 use alloc::boxed::Box;
 use core::fmt::Debug;
 use lazy_static::lazy_static;
-
-pub fn init(port_manager: &mut PortManager) {
-    crate::pic::init(port_manager);
-}
 
 #[macro_export]
 macro_rules! interrupt_guard {
@@ -81,6 +77,7 @@ lazy_static! {
 }
 
 pub struct InterruptLookup {
+    // TODO: This cannot be a spinlock because an interrupt may fire while registering
     funcs: SpinLock<hashbrown::HashMap<u8, InterruptHandler>>,
 }
 
@@ -98,7 +95,7 @@ impl InterruptLookup {
     pub fn register_handler(&self, handler: InterruptHandler) {
         let offset = match &handler {
             InterruptHandler::Exception(exc) => exc.vec_offset,
-            InterruptHandler::Pic(pic) => pic.vec_offset() + PIC_VEC_OFFSET as u8,
+            InterruptHandler::Pic(pic) => pic.vec_offset() + Pic::VEC_OFFSET as u8,
         };
 
         self.funcs.lock().insert(offset, handler);
@@ -138,6 +135,7 @@ impl PicHandler {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum IrqId {
     Pic1(u8),
     Pic2(u8),

@@ -3,9 +3,9 @@ use crate::{
     gdt, idt,
     interrupt::{self, InterruptLookup},
     multiboot::MultibootHeader,
+    pic::Pic,
     port::PortManager,
     ps2::{KeyCode, KeyState, KeyboardInput, Ps2Keyboard},
-    serial_println,
     time::Rtc,
 };
 
@@ -13,39 +13,20 @@ use crate::{
 pub struct Kernel {
     interrupt_lookup: &'static InterruptLookup,
     port_manager: PortManager,
+    pic: Pic,
     frame_buf: FrameBuffer,
     keyboard: Ps2Keyboard,
 }
 
-fn check_interrupt_state(location: &str) {
-    unsafe {
-        let mut flags: u32;
-        core::arch::asm!("pushf; pop {}", out(reg) flags);
-        serial_println!(
-            "Interrupt state at {}: IF={}",
-            location,
-            (flags & (1 << 9)) != 0
-        );
-    }
-}
-
 impl Kernel {
-    pub fn new(multiboot_header: &MultibootHeader) -> Self {
+    pub fn new(multiboot_header: &MultibootHeader, mut port_manager: PortManager) -> Self {
         interrupt::InterruptGuard::run(|| {
-            let mut port_manager = PortManager::default();
             gdt::init();
             let interrupt_lookup = idt::init();
-            interrupt::init(&mut port_manager);
+            let mut pic = Pic::new(&mut port_manager);
 
-            Rtc::enable_irq(&mut port_manager, interrupt_lookup);
-            let keyboard = Ps2Keyboard::new(&mut port_manager, interrupt_lookup);
-
-            interrupt_lookup.register_handler(interrupt::InterruptHandler::Pic(
-                interrupt::PicHandler::new(interrupt::IrqId::Pic1(0), move || {
-                    // Prevent PIT interrupt warnings
-                }),
-            ));
-
+            Rtc::enable_irq(&mut port_manager, interrupt_lookup, &mut pic);
+            let keyboard = Ps2Keyboard::new(&mut port_manager, interrupt_lookup, &mut pic);
             let frame_buf = FrameBuffer::new(multiboot_header);
 
             crate::info!("kernel initialized");
@@ -53,6 +34,7 @@ impl Kernel {
             Self {
                 port_manager,
                 interrupt_lookup,
+                pic,
                 frame_buf,
                 keyboard,
             }

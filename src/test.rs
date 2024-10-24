@@ -1,3 +1,5 @@
+use crate::println;
+
 #[macro_export]
 macro_rules! test_case {
     ($name:ident, $blck:block) => {
@@ -52,13 +54,10 @@ pub enum TestResult {
 }
 
 pub fn test_runner(tests: &[&TestFn]) {
-    use crate::{
-        exit::{exit_qemu, QemuExitCode},
-        serial_println,
-    };
+    use crate::exit::{exit_qemu, QemuExitCode};
     use alloc::vec::Vec;
 
-    serial_println!("Running {} tests...\n", tests.len());
+    println!("Running {} tests...\n", tests.len());
     let mut results = Vec::with_capacity(tests.len());
     for test in tests {
         let result = (test.func)();
@@ -66,7 +65,7 @@ pub fn test_runner(tests: &[&TestFn]) {
             TestResult::Success => "\x1b[32mOK\x1b[00m",
             TestResult::Failure(_) => "\x1b[31mERR\x1b[00m",
         };
-        serial_println!("{}::{} ... [{}]", test.module_path, test.name, result_msg);
+        println!("{}::{} ... [{}]", test.module_path, test.name, result_msg);
         results.push((result, test.name));
     }
 
@@ -79,22 +78,22 @@ pub fn test_runner(tests: &[&TestFn]) {
             .iter()
             .filter(|(r, _)| *r != TestResult::Success)
             .count();
-        serial_println!(
+        println!(
             "\n\x1b[32m{}\x1b[00m tests \x1b[32mpassed\x1b[00m",
             num_pass
         );
-        serial_println!("\x1b[31m{}\x1b[00m tests \x1b[31mfailed\x1b[00m", num_fail);
+        println!("\x1b[31m{}\x1b[00m tests \x1b[31mfailed\x1b[00m", num_fail);
 
         for (test, test_name) in results.iter() {
             match test {
                 TestResult::Success => {}
                 TestResult::Failure(line) => {
-                    serial_println!("\t{} failed on line {}", test_name, line,);
+                    println!("\t{} failed on line {}", test_name, line,);
                 }
             }
         }
     } else {
-        serial_println!("\nAll tests \x1b[32mpassed\x1b[00m");
+        println!("\nAll tests \x1b[32mpassed\x1b[00m");
     }
 
     exit_qemu(QemuExitCode::Success);

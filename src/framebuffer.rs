@@ -133,6 +133,7 @@ pub struct Point {
     pub y: isize,
 }
 
+#[allow(unused)]
 impl Point {
     pub fn new(x: isize, y: isize) -> Self {
         Self { x, y }

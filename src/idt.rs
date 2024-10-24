@@ -108,7 +108,7 @@ macro_rules! register_pic_handler {
                             unsafe {
                                 let pic1 = $crate::port::Port::new(0x20);
                                 let pic2 = $crate::port::Port::new(0xA0);
-                                if ($entry >= 8 + $crate::pic::PIC_VEC_OFFSET) {
+                                if ($entry >= 8 + $crate::pic::Pic::VEC_OFFSET) {
                                     pic2.write(0x20);
                                 }
                                 pic1.write(0x20);
@@ -201,9 +201,9 @@ fn init_idt() {
 
                     unsafe {
                         let bytes = core::slice::from_raw_parts(instruction_ptr as *const u8, 16);
-                        crate::serial_println!("Invalid opcode at address {:08x}", instruction_ptr);
-                        crate::serial_println!("Instruction bytes: {:02x?}", &bytes);
-                        crate::serial_println!("frame: {:#?}", frame);
+                        crate::error!("Invalid opcode at address {:08x}", instruction_ptr);
+                        crate::error!("Instruction bytes: {:02x?}", &bytes);
+                        crate::error!("frame: {:#?}", frame);
                     }
 
                     panic!("Invalid opcode exception");

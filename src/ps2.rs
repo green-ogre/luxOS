@@ -2,6 +2,7 @@ use crate::{
     circular_buffer::CircularBuffer,
     info,
     interrupt::{InterruptHandler, InterruptLookup, IrqId, PicHandler},
+    pic::Pic,
     port::{Port, PortManager},
 };
 use alloc::sync::Arc;
@@ -11,7 +12,11 @@ pub struct Ps2Keyboard {
 }
 
 impl Ps2Keyboard {
-    pub fn new(port_manager: &mut PortManager, interrupt_lookup: &InterruptLookup) -> Self {
+    pub fn new(
+        port_manager: &mut PortManager,
+        interrupt_lookup: &InterruptLookup,
+        pic: &mut Pic,
+    ) -> Self {
         let mut data = unsafe {
             port_manager
                 .request_port(0x60)
@@ -28,8 +33,10 @@ impl Ps2Keyboard {
         let hanlder_input = input.clone();
 
         let mut last_scan_code = 0;
+        let pic_id = IrqId::Pic1(1);
+        pic.unmask(pic_id);
         interrupt_lookup.register_handler(InterruptHandler::Pic(PicHandler::new(
-            IrqId::Pic1(1),
+            pic_id,
             move || {
                 while unsafe { status_and_command_register.read() & 2 > 0 } {}
                 let data = unsafe { data.read() };

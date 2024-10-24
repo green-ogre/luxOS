@@ -1,10 +1,8 @@
 use arrayvec::ArrayVec;
-use core::arch::asm;
+use core::{arch::asm, ops::Deref};
 
-const RESERVED_PORTS: [u16; 9] = [
+const RESERVED_PORTS: [u16; 1] = [
     0xF4, // Exit qemu
-    // Serial IO
-    0x3F8, 0x3F9, 0x3FA, 0x3FB, 0x3FC, 0x3FD, 0x3FE, 0x3FF,
 ];
 
 /// Interface to port IO.
@@ -28,6 +26,27 @@ impl PortManager {
         } else {
             None
         }
+    }
+
+    pub unsafe fn request_range<const LEN: usize>(
+        &mut self,
+        offset: u16,
+    ) -> Option<PortSlice<LEN>> {
+        assert!(
+            !offset.overflowing_add(LEN as u16).1,
+            "port range is too large"
+        );
+
+        let mut slice = PortSlice(ArrayVec::new());
+        for port in offset..offset + LEN as u16 {
+            if let Some(port) = self.request_port(port) {
+                slice.0.push(port);
+            } else {
+                return None;
+            }
+        }
+        debug_assert!(slice.0.len() == LEN);
+        Some(slice)
     }
 }
 
@@ -60,5 +79,15 @@ impl Port {
             );
         }
         value
+    }
+}
+
+pub struct PortSlice<const LEN: usize>(ArrayVec<Port, LEN>);
+
+impl<const LEN: usize> Deref for PortSlice<LEN> {
+    type Target = ArrayVec<Port, LEN>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
