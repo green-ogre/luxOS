@@ -86,8 +86,7 @@ impl SerialPort {
 
         // Check if serial is faulty (i.e: not same byte as sent)
         if self.ports[0].read() != 0xAE {
-            println!("Could not init serial port: 0x3F8");
-            panic!();
+            panic!("failed to init serial port");
         }
 
         // If serial is not faulty set it in normal operation mode

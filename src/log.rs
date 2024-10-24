@@ -1,6 +1,5 @@
 use crate::{circular_buffer::CircularBuffer, serial::SerialPort};
-use alloc::string::String;
-use core::cell::UnsafeCell;
+use core::{cell::UnsafeCell, fmt::Write};
 
 pub static LOGGER: LogCell = LogCell(UnsafeCell::new(None));
 pub struct LogCell(pub UnsafeCell<Option<Logger>>);
@@ -16,18 +15,19 @@ pub fn init(log_level: LogLevel) {
 }
 
 pub struct Logger {
-    pub log_level: LogLevel,
-    pub serial_port: SerialPort,
-    pub buf: CircularBuffer<u8>,
+    log_level: LogLevel,
+    serial_port: SerialPort,
+    buf: CircularBuffer<u8>,
 }
 
 impl Logger {
-    const BUF_LEN: usize = 1028;
+    const BUF_LEN: usize = 512;
 
     pub unsafe fn new(log_level: LogLevel) -> Self {
         let buf = CircularBuffer::new(Self::BUF_LEN);
         let serial_port = SerialPort::default();
         unsafe { serial_port.init() };
+
         Self {
             log_level,
             serial_port,
@@ -35,15 +35,23 @@ impl Logger {
         }
     }
 
-    pub fn log(&self, log_level: LogLevel, log: String) {
-        if self.log_level.should_log(&log_level) {
-            for byte in log.bytes() {
-                self.buf.write(byte);
-            }
+    pub fn log(
+        &self,
+        logger: &'static Logger,
+        log_level: LogLevel,
+        args: core::fmt::Arguments<'_>,
+    ) {
+        if log_level.should_log(&self.log_level) {
+            LogWriter { logger }.write_fmt(args).unwrap();
+            logger.flush();
         }
     }
 
     pub fn flush(&self) {
+        // while let Ok(byte) = self.rec.try_recv() {
+        //     self.serial_port.write_byte(byte);
+        // }
+
         while let Some(byte) = self.buf.read() {
             self.serial_port.write_byte(byte);
         }
@@ -75,6 +83,26 @@ impl LogLevel {
                     || *other == Self::Error
             }
         }
+    }
+}
+
+pub struct LogWriter {
+    pub logger: &'static Logger,
+}
+
+impl Write for LogWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        assert!(
+            Logger::BUF_LEN > s.len(),
+            "log is longer than buf len {}: {}",
+            Logger::BUF_LEN,
+            s
+        );
+
+        for c in s.bytes() {
+            self.logger.buf.write(c);
+        }
+        Ok(())
     }
 }
 
@@ -170,12 +198,10 @@ macro_rules! error {
 #[macro_export]
 macro_rules! log {
     ($log_lvl:expr, $($arg:tt)*) => {
+        #[cfg(feature = "log")]
         {
-            #[cfg(feature = "log")]
-            {
-                if let Some(logger) = $crate::log::LOGGER.get() {
-                    logger.log($log_lvl, alloc::format!($($arg)*))
-                }
+            if let Some(logger) = $crate::log::LOGGER.get() {
+                logger.log(logger, $log_lvl, format_args!($($arg)*));
             }
         }
     };

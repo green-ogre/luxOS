@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 arrayvec = { version = "0.7.6", default-features = false }
-once_cell = { version = "1.20.2", default-features = false }
 lazy_static = { version = "1.0", features = ["spin_no_std"] }
 paste = "1.0.15"
 hashbrown = "0.15.0"

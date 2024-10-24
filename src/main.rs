@@ -41,22 +41,20 @@ pub extern "C" fn kernel_main(magic: u32, multiboot_header: *const MultibootHead
     let multiboot_header = unsafe { &*multiboot_header };
     multiboot::parse_multiboot_header(magic, multiboot_header);
     memory::ALLOCATOR.init(multiboot_header);
-
     log::init(log::LogLevel::Info);
-    crate::info!("Hi");
-    exit_qemu(QemuExitCode::Success);
-    //
-    // #[cfg(test)]
-    // test_main();
-    //
-    // let mut kernel = kernel::Kernel::new(multiboot_header);
-    // // kernel.run();
-    // kernel.square_demo();
+
+    #[cfg(test)]
+    test_main();
+
+    let mut kernel = kernel::Kernel::new(multiboot_header);
+    // kernel.run();
+    kernel.square_demo();
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     struct PanicWriter;
+
     impl core::fmt::Write for PanicWriter {
         fn write_str(&mut self, s: &str) -> core::fmt::Result {
             for c in s.chars() {
@@ -68,24 +66,7 @@ fn panic(info: &PanicInfo) -> ! {
     }
 
     use core::fmt::Write;
-    match info.message().as_str() {
-        Some(msg) => {
-            let _ = write!(PanicWriter, "\nPANIC: {}", msg);
-
-            // INFO: For some reason, running with cdrom in qemu will cause the `loc.to_string()`
-            // call to core dump.
-
-            // if let Some(loc) = info.location() {
-            //     let val = loc.to_string();
-            //     serial_println!("PANIC: {}", msg);
-            // } else {
-            //     serial_println!("PANIC: {}", msg);
-            // }
-        }
-        None => {
-            let _ = write!(PanicWriter, "\nPANIC");
-        }
-    }
+    let _ = write!(PanicWriter, "\nPANIC: {}", info.message());
 
     exit_qemu(QemuExitCode::Failed);
     loop {}

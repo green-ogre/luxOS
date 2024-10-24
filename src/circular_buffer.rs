@@ -26,7 +26,6 @@ impl<T> CircularBuffer<T> {
     }
 
     pub fn write(&self, elem: T) {
-        panic!("hi");
         let new_idx = |idx: usize| -> usize {
             if idx >= self.buf.len().saturating_sub(1) {
                 0
